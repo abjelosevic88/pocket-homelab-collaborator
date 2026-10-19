@@ -339,12 +339,20 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .person-picker .sel { flex: 1 1 220px; }
 
 /* live presence */
-.live-stack { display: inline-flex; align-items: center; gap: 2px; }
-.live-person { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; border: 0; background: none; padding: 2px 3px; cursor: pointer; border-radius: 8px; color: var(--muted); }
-.live-person:hover { background: var(--surface-2); }
-.live-person .pg { font-size: 9.5px; line-height: 1; font-variant-numeric: tabular-nums; }
+.live-stack { display: inline-flex; align-items: center; gap: 10px; }
+/* one avatar per person, ringed in their live colour; the corner badge is the page they are on */
+.live-person { position: relative; display: inline-flex; border: 0; background: none; padding: 0; border-radius: 50%; cursor: pointer; }
+.live-person:focus { outline: none; }
+.live-person:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.live-person .avatar { width: 28px; height: 28px; font-size: 10.5px; transition: opacity .2s; }
+.live-person:hover .avatar { transform: translateY(-1px); }
+.live-person .pg { position: absolute; right: -7px; bottom: -5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--text); color: var(--bg);
+  font-size: 10px; font-weight: 700; line-height: 17px; text-align: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--bg); }
 .live-person.idle .avatar { opacity: .45; }
-.live-person.me .pg { color: var(--accent-hover); }
+.live-person.idle .pg { background: var(--muted); }
+.review-row .live-stack, .mini-list .live-stack { gap: 8px; }
+.review-row .live-person .avatar, .mini-list .live-person .avatar { width: 22px; height: 22px; font-size: 9px; }
+.review-row .live-person .pg, .mini-list .live-person .pg { min-width: 14px; height: 14px; line-height: 14px; font-size: 8.5px; right: -6px; bottom: -4px; box-shadow: 0 0 0 2px var(--surface); }
 .conn { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; opacity: .5; }
 .conn.on { background: var(--green); opacity: 1; box-shadow: 0 0 0 3px var(--success-soft); }
 .live-pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: pulse 1.6s ease-in-out infinite; }
@@ -520,3 +528,11 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .role-select { width: 140px; flex-shrink: 0; }
 .people-list .role-select .sel-pop, .mini-list .role-select .sel-pop { left: auto; right: 0; }
 .sel-hint { margin-left: auto; padding-left: 10px; color: var(--muted); }
+
+/* arriving at a thread from the sidebar: the highlight and its pin pulse twice */
+@keyframes anno-flash { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 38, 211, 0); } 30% { box-shadow: 0 0 0 6px rgba(192, 38, 211, .45); } }
+@keyframes pin-flash { 0%, 100% { transform: translate(-2px, -8px) scale(1.25); } 30% { transform: translate(-2px, -8px) scale(1.7); } }
+.anno.flash { animation: anno-flash .9s ease-out 2; background: rgba(192, 38, 211, .3); }
+.pin.flash { animation: pin-flash .9s ease-out 2; z-index: 6; }
+.thread:not(.open) { cursor: pointer; }
+.thread.open .thread-head, .thread.open .quote, .thread.open > .body { cursor: pointer; }

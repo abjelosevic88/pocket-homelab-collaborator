@@ -27,7 +27,7 @@ export default function ReviewPage() {
   const [err, setErr] = useState('')
   const [tab, setTab] = useState<Tab>('threads')
   const [selected, setSelected] = useState<number | null>(null)
-  const [jump, setJump] = useState<{ page: number; y: number; nonce: number } | null>(null)
+  const [jump, setJump] = useState<{ page: number; y: number; nonce: number; threadId?: number } | null>(null)
   const [pending, setPending] = useState<{ page: number; anchor: Anchor } | null>(null)
   const [tool, setTool] = useState<Tool>('select')
   const [page, setPage] = useState(1)
@@ -84,7 +84,7 @@ export default function ReviewPage() {
   const select = (t: Comment) => {
     setSelected(t.id); setTab('threads')
     const y = t.anchor?.rects?.[0]?.y ?? 0
-    setJump({ page: t.page || 1, y, nonce: Date.now() })
+    setJump({ page: t.page || 1, y, nonce: Date.now(), threadId: t.id })
   }
   const runStatus = async (action: string, note = '') => {
     try { setReview(await api.post<Review>(`${V1}/reviews/${rid}/status`, { action, note })); toast('Done') } catch (e) { toast((e as Error).message, 'err') }
@@ -297,7 +297,8 @@ function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked
     { open: 'Reopened', resolved: 'Resolved', rejected: 'Rejected' }[status])
   const send = () => reply.trim() && run(async () => { await api.post(`${V1}/reviews/${review.id}/comments`, { parent_id: t.id, body: reply }); setReply('') })
   return (
-    <div className={`thread card ${open ? 'open' : ''} st-${t.status} kind-${t.kind} ${t.severity ? 'sev-' + t.severity : ''}`} onClick={() => !open && onSelect()}>
+    <div className={`thread card ${open ? 'open' : ''} st-${t.status} kind-${t.kind} ${t.severity ? 'sev-' + t.severity : ''}`} title="Show in the document"
+      onClick={e => { if ((e.target as HTMLElement).closest('button, a, textarea, input, .sel, .reply-box, .close-box, .thread-actions')) return; onSelect() }}>
       <div className="thread-head">
         <span className={`kind-ico ${t.kind} ${t.severity}`}>{KIND_ICON[t.kind]}</span>
         <span className="grow">

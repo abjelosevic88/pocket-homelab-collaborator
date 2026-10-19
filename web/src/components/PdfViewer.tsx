@@ -25,7 +25,7 @@ interface Props {
   cursors: RemoteCursor[]
   showCursors: boolean
   onCursor: (page: number, x: number, y: number) => void
-  jump: { page: number; y: number; nonce: number } | null
+  jump: { page: number; y: number; nonce: number; threadId?: number } | null
 }
 
 interface Size { w: number; h: number }
@@ -41,6 +41,7 @@ export default function PdfViewer(p: Props) {
   const [width, setWidth] = useState(0)
   const [near, setNear] = useState<Set<number>>(new Set([1, 2]))
   const [current, setCurrent] = useState(1)
+  const [flash, setFlash] = useState<number | null>(null)
   const [selBtn, setSelBtn] = useState<{ x: number; y: number; page: number; anchor: Anchor } | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const pageEls = useRef<Map<number, HTMLDivElement>>(new Map())
@@ -122,7 +123,14 @@ export default function PdfViewer(p: Props) {
     const el = pageEls.current.get(p.jump.page)
     const root = scroller.current
     if (!el || !root) return
-    root.scrollTo({ top: el.offsetTop + p.jump.y * el.offsetHeight - 120, behavior: 'smooth' })
+    // put the spot in the upper third of the viewer, then make it pulse so the eye finds it
+    root.scrollTo({ top: Math.max(0, el.offsetTop + p.jump.y * el.offsetHeight - root.clientHeight / 3), behavior: 'smooth' })
+    if (!p.jump.threadId) return
+    setFlash(null)
+    const id = p.jump.threadId
+    const on = setTimeout(() => setFlash(id), 60)
+    const off = setTimeout(() => setFlash(f => (f === id ? null : f)), 2200)
+    return () => { clearTimeout(on); clearTimeout(off) }
   }, [p.jump])
 
   const goPage = (n: number) => {
@@ -211,7 +219,7 @@ export default function PdfViewer(p: Props) {
             <PageView key={n} doc={doc} n={n} w={s.w * scale} h={s.h * scale} scale={scale} render={near.has(n)}
               register={el => { if (el) pageEls.current.set(n, el); else pageEls.current.delete(n) }}
               onMove={(x, y) => p.onCursor(n, x, y)}>
-              <Overlay threads={threadsByPage.get(n) || []} carried={p.carried} selectedId={p.selectedId} onSelect={p.onSelect}
+              <Overlay threads={threadsByPage.get(n) || []} carried={p.carried} selectedId={p.selectedId} flashId={flash} onSelect={p.onSelect}
                 pending={p.pending?.page === n ? p.pending.anchor : null} />
               {p.tool === 'comment' && p.canComment && <DrawLayer onDone={a => p.onAnchor(n, a)} />}
               {p.showCursors && p.cursors.filter(c => c.page === n).map(c => (
@@ -318,8 +326,8 @@ function threadClass(t: Comment) {
 
 export const KIND_ICON: Record<string, string> = { issue: '!', question: '?', comment: '…' }
 
-function Overlay({ threads, carried, selectedId, onSelect, pending }: {
-  threads: Comment[]; carried: Set<number>; selectedId: number | null; onSelect: (id: number) => void; pending: Anchor | null
+function Overlay({ threads, carried, selectedId, flashId, onSelect, pending }: {
+  threads: Comment[]; carried: Set<number>; selectedId: number | null; flashId: number | null; onSelect: (id: number) => void; pending: Anchor | null
 }) {
   return (
     <div className="overlay">
@@ -328,7 +336,7 @@ function Overlay({ threads, carried, selectedId, onSelect, pending }: {
         const first = rects[0]
         const point = first.w === 0 && first.h === 0
         const sel = selectedId === t.id
-        const cls = `${threadClass(t)} ${sel ? 'picked' : ''} ${carried.has(t.id) ? 'carried' : ''}`
+        const cls = `${threadClass(t)} ${sel ? 'picked' : ''} ${flashId === t.id ? 'flash' : ''} ${carried.has(t.id) ? 'carried' : ''}`
         const pinX = point ? first.x : Math.min(0.985, Math.max(...rects.map(r => r.x + r.w)) + 0.008)
         const pinY = first.y
         return (

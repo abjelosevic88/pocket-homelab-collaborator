@@ -23,13 +23,14 @@ export function LiveStack({ people, max = 6, onPick, meConn }: { people: Presenc
   return (
     <span className="live-stack">
       {shown.map(p => (
-        <button key={p.conn} type="button" className={`live-person ${p.active ? '' : 'idle'} ${p.conn === meConn ? 'me' : ''}`} onClick={() => onPick?.(p)}
-          title={`${p.name}${p.conn === meConn ? ' (you)' : ''} — page ${p.page}${p.active ? '' : ' · idle'}`}>
-          <Avatar id={p.user_id} name={p.name} color={p.color} ring={p.color} size="sm" title="" />
-          <span className="pg">p.{p.page}</span>
+        <button key={p.conn} type="button" className={`live-person ${p.active ? '' : 'idle'}`} onClick={() => onPick?.(p)}
+          title={`${p.name}${p.conn === meConn ? ' (you)' : ''} — on page ${p.page}${p.active ? '' : ' · idle'}`}
+          aria-label={`${p.name}${p.conn === meConn ? ' (you)' : ''}, page ${p.page}${p.active ? '' : ', idle'}`}>
+          <Avatar id={p.user_id} name={p.name} color={p.color} title="" />
+          <span className="pg" aria-hidden>{p.page}</span>
         </button>
       ))}
-      {list.length > max && <span className="avatar sm more">+{list.length - max}</span>}
+      {list.length > max && <span className="avatar more">+{list.length - max}</span>}
     </span>
   )
 }
