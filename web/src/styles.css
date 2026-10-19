@@ -561,3 +561,15 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .task-chip > span:last-child { flex-shrink: 0; }
 .thread { min-width: 0; overflow-wrap: anywhere; }
 .avatar-stack .pa.is-live { margin-right: 10px; }
+
+/* ---- sidebar footer: name and version shrink with an ellipsis, the two icon buttons never move ---- */
+.sidebar .foot { gap: 8px; padding: 12px 12px 12px 14px; }
+.sidebar .foot .foot-user { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.sidebar .foot .foot-user .avatar { width: 30px; height: 30px; font-size: 11px; flex-shrink: 0; }
+.sidebar .foot .foot-id { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.sidebar .foot .foot-name { color: var(--text); font-weight: 550; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar .foot .ver { font-family: var(--font); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar .foot .foot-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.icon-btn { width: 32px; height: 32px; display: inline-grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
