@@ -1,0 +1,20 @@
+services:
+  pocket-collaborator:
+    image: ghcr.io/abjelosevic88/pocket-homelab-collaborator:latest
+    container_name: pocket-collaborator
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: ${TZ:-UTC}
+      BASE_URL: ${BASE_URL:-}
+      # Set both to skip the first-run setup screen and create the admin directly:
+      # ADMIN_EMAIL: ${ADMIN_EMAIL}
+      # ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # SECURE_COOKIES: "true"          # behind HTTPS
+      # AUTH_MODE: proxy                # trust Remote-User from Authelia / Authentik / Tinyauth
+      # MAX_UPLOAD_MB: "100"            # largest PDF accepted
+      # IDLE_AFTER: 2m                  # no input for this long = not reviewing
+      # DEMO_DATA: "true"               # seed a contract under review into an empty database
+    volumes:
+      - ./data:/data
