@@ -24,6 +24,15 @@ export async function countPages(file: File): Promise<number> {
   try { return (await task.promise).numPages } finally { await task.destroy() }
 }
 
+const ROLE_HINT: Record<Role, string> = { owner: 'hands the review over', approver: 'signs off', reviewer: 'comments, verdict', observer: 'reads along' }
+
+/** Searchable role picker; withOwner adds "Make owner…" (hand the review over). */
+export function RoleSelect({ value, onChange, withOwner, disabled }: { value: Role; onChange: (r: Role) => void; withOwner?: boolean; disabled?: boolean }) {
+  const roles: Role[] = withOwner ? ['approver', 'reviewer', 'observer', 'owner'] : ['approver', 'reviewer', 'observer']
+  return <Select value={value} onChange={v => onChange(v as Role)} ariaLabel="Role" className="role-select" disabled={disabled}
+    options={roles.map(r => ({ value: r, label: r === 'owner' ? 'Make owner…' : ROLE_LABEL[r], hint: ROLE_HINT[r] }))} />
+}
+
 export interface PersonInvite { user_id?: number; email?: string; name?: string; role: Role }
 
 /** Pick an existing account or type an email (a passwordless account is made for it), and a role. */
@@ -43,11 +52,7 @@ export function PersonPicker({ users, exclude, onAdd, busy }: { users: User[]; e
       <Select value={who} onChange={setWho} options={options} placeholder="Person or email…" ariaLabel="Person"
         onCreate={label => { const e = label.trim().toLowerCase(); return e.includes('@') ? `email:${e}` : '' }} createLabel="Invite"
         className="grow" />
-      <select value={role} onChange={e => setRole(e.target.value as Role)} aria-label="Role" style={{ width: 'auto' }}>
-        <option value="reviewer">Reviewer</option>
-        <option value="approver">Approver</option>
-        <option value="observer">Observer</option>
-      </select>
+      <RoleSelect value={role} onChange={setRole} />
       <button type="button" className="btn" onClick={add} disabled={!who || busy}>Add</button>
       {who.startsWith('email:') && <span className="muted small block" style={{ flexBasis: '100%' }}>{who.slice(6)} gets an account; they sign in with single sign-on, or an admin sets a password.</span>}
     </div>

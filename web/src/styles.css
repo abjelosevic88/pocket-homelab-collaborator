@@ -358,7 +358,6 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .review-head { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; padding-bottom: 8px; }
 .review-title { font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: min(60vw, 720px); }
 .review-head .meta { color: var(--muted); font-size: 12.5px; gap: 8px; margin-top: 4px; }
-.rev-select { width: auto; padding: 3px 8px; font-size: 12.5px; }
 .head-live { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 .review-head .actions { gap: 6px; }
 .review-desc { margin: 0 0 8px; color: var(--muted); font-size: 13px; max-width: 900px; }
@@ -396,16 +395,16 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; }
 .textLayer.selecting .endOfContent { top: 0; }
 .overlay { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
-.hl { position: absolute; border-radius: 2px; background: rgba(192, 38, 211, .14); mix-blend-mode: multiply; transition: background .15s; }
-.hl.issue { background: rgba(236, 131, 90, .22); }
-.hl.issue.critical { background: rgba(208, 59, 59, .2); }
-.hl.question { background: rgba(42, 120, 214, .16); }
-.hl.done { background: rgba(120, 120, 120, .08); }
-.hl.sel { outline: 2px solid var(--accent); background: rgba(192, 38, 211, .22); }
-.hl.carried { outline: 1px dashed var(--muted); }
-.hl.pending { background: rgba(192, 38, 211, .18); outline: 2px dashed var(--accent); }
+.anno { position: absolute; border-radius: 2px; background: rgba(192, 38, 211, .14); mix-blend-mode: multiply; transition: background .15s; }
+.anno.issue { background: rgba(236, 131, 90, .22); }
+.anno.issue.critical { background: rgba(208, 59, 59, .2); }
+.anno.question { background: rgba(42, 120, 214, .16); }
+.anno.done { background: rgba(120, 120, 120, .08); }
+.anno.picked { outline: 2px solid var(--accent); background: rgba(192, 38, 211, .22); }
+.anno.carried { outline: 1px dashed var(--muted); }
+.anno.pending { background: rgba(192, 38, 211, .18); outline: 2px dashed var(--accent); }
 .pin { position: absolute; pointer-events: auto; transform: translate(-2px, -8px); width: 20px; height: 20px; border-radius: 50% 50% 50% 2px; border: 2px solid #fff; display: grid; place-items: center; font: 700 11px/1 var(--font); color: #fff; background: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer; padding: 0; z-index: 4; }
-.pin:hover, .pin.sel { transform: translate(-2px, -8px) scale(1.25); z-index: 5; }
+.pin:hover, .pin.picked { transform: translate(-2px, -8px) scale(1.25); z-index: 5; }
 .pin.issue { background: var(--sev-major); } .pin.issue.critical { background: var(--sev-critical); } .pin.issue.minor { background: var(--sev-minor); }
 .pin.question { background: var(--series-1); }
 .pin.done { background: #9ca3af; }
@@ -420,7 +419,6 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 /* threads */
 .composer { padding: 12px; display: grid; gap: 8px; margin-bottom: 12px; border-color: var(--accent); }
 .thread-filters { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-.thread-filters select { width: auto; padding: 4px 8px; font-size: 12.5px; }
 .thread-list { display: grid; gap: 8px; }
 .thread { padding: 10px 12px; cursor: pointer; border-left: 3px solid var(--accent); }
 .thread.kind-issue { border-left-color: var(--sev-major); } .thread.sev-critical { border-left-color: var(--sev-critical); } .thread.sev-minor { border-left-color: var(--sev-minor); }
@@ -452,7 +450,6 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .task-list.pad-x li { padding-left: 16px; padding-right: 16px; }
 .people-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .people-list li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--border); }
-.people-list li select { padding: 4px 8px; font-size: 12.5px; }
 .log-list { list-style: none; margin: 0; padding: 0; }
 .log-list li { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--border); }
 .log-list li:last-child { border-bottom: 0; }
@@ -513,3 +510,13 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
   .review-row .side { display: none; }
   .gantt-row { grid-template-columns: 90px 1fr 60px; }
 }
+
+/* ---- searchable selects in tight spots (filters, header, people rows) ---- */
+.sel.compact .sel-btn, .thread-filters .sel-btn, .rev-select .sel-btn, .role-select .sel-btn { min-height: 32px; padding: 5px 28px 5px 10px; font-size: 12.5px; }
+.thread-filters .sel { flex: 1 1 120px; min-width: 0; }
+.thread-filters .sel-pop, .role-select .sel-pop { min-width: 220px; }
+.rev-select { width: auto; min-width: 150px; }
+.rev-select .sel-pop { min-width: 300px; }
+.role-select { width: 140px; flex-shrink: 0; }
+.people-list .role-select .sel-pop, .mini-list .role-select .sel-pop { left: auto; right: 0; }
+.sel-hint { margin-left: auto; padding-left: 10px; color: var(--muted); }

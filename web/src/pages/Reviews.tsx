@@ -6,7 +6,7 @@ import type { Review, Revision } from '../lib/types'
 import { ago, fmtBytes, fmtDate, personName, plural } from '../lib/format'
 import { Empty, Field, Loading, Modal, PageHeader, Segmented, useAsync, useDebounce, useToast } from '../components/ui'
 import { Avatar, LiveStack } from '../components/people'
-import { countPages, PersonInvite, PersonPicker, RoleBadge, StatusBadge } from '../components/review-bits'
+import { countPages, PersonInvite, PersonPicker, RoleBadge, RoleSelect, StatusBadge } from '../components/review-bits'
 
 type Filter = 'open' | 'closed' | ''
 
@@ -127,9 +127,7 @@ function NewReview({ onClose }: { onClose: () => void }) {
         <Field group label="People" help="An approver signs off; reviewers read and comment; observers read along. You are the owner. You can change all this later.">
           {people.length > 0 && <ul className="mini-list">{people.map((p, i) => (
             <li key={i}><Avatar id={p.user_id || i + 100} name={label(p)} /><span className="grow">{label(p)}</span>
-              <select value={p.role} onChange={e => setPeople(ps => ps.map((x, j) => j === i ? { ...x, role: e.target.value as PersonInvite['role'] } : x))} style={{ width: 'auto' }}>
-                <option value="approver">Approver</option><option value="reviewer">Reviewer</option><option value="observer">Observer</option>
-              </select>
+              <RoleSelect value={p.role} onChange={role => setPeople(ps => ps.map((x, j) => j === i ? { ...x, role } : x))} />
               <button type="button" className="btn ghost sm" onClick={() => setPeople(ps => ps.filter((_, j) => j !== i))}>✕</button></li>
           ))}</ul>}
           <PersonPicker users={users} exclude={[user!.id, ...people.map(p => p.user_id || 0)]} onAdd={p => setPeople(ps => [...ps, p])} />

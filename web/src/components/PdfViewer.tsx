@@ -301,7 +301,7 @@ function DrawLayer({ onDone }: { onDone: (a: Anchor) => void }) {
         if (!b) return
         onDone({ rects: [b.w < 0.01 && b.h < 0.008 ? { x: b.x, y: b.y, w: 0, h: 0 } : b] })
       }}>
-      {box && (box.w > 0 || box.h > 0) && <div className="hl pending" style={rectStyle(box)} />}
+      {box && (box.w > 0 || box.h > 0) && <div className="anno pending" style={rectStyle(box)} />}
     </div>
   )
 }
@@ -328,12 +328,12 @@ function Overlay({ threads, carried, selectedId, onSelect, pending }: {
         const first = rects[0]
         const point = first.w === 0 && first.h === 0
         const sel = selectedId === t.id
-        const cls = `${threadClass(t)} ${sel ? 'sel' : ''} ${carried.has(t.id) ? 'carried' : ''}`
+        const cls = `${threadClass(t)} ${sel ? 'picked' : ''} ${carried.has(t.id) ? 'carried' : ''}`
         const pinX = point ? first.x : Math.min(0.985, Math.max(...rects.map(r => r.x + r.w)) + 0.008)
         const pinY = first.y
         return (
           <React.Fragment key={t.id}>
-            {!point && rects.map((r, i) => <div key={i} className={`hl ${cls}`} style={rectStyle(r)} />)}
+            {!point && rects.map((r, i) => <div key={i} className={`anno ${cls}`} style={rectStyle(r)} />)}
             <button type="button" className={`pin ${cls}`} style={{ left: `${pinX * 100}%`, top: `${pinY * 100}%` }}
               onClick={e => { e.stopPropagation(); onSelect(t.id) }} title={`#${t.id} ${t.kind}${t.severity ? ` (${t.severity})` : ''} — ${t.author_name}: ${t.body.slice(0, 120)}`}>
               {t.status === 'open' ? KIND_ICON[t.kind] : t.status === 'resolved' ? '✓' : '✕'}
@@ -343,7 +343,7 @@ function Overlay({ threads, carried, selectedId, onSelect, pending }: {
       })}
       {pending && pending.rects.map((r, i) => r.w === 0 && r.h === 0
         ? <span key={i} className="pin pending" style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%` }}>+</span>
-        : <div key={i} className="hl pending" style={rectStyle(r)} />)}
+        : <div key={i} className="anno pending" style={rectStyle(r)} />)}
     </div>
   )
 }

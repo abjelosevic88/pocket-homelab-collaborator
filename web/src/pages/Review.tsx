@@ -8,7 +8,8 @@ import { ago, fmtBytes, fmtDate, fmtDateTime, fmtDuration, personName, plural, R
 import { Confirm, Field, Loading, Modal, Segmented, useToast } from '../components/ui'
 import { Avatar, LiveStack } from '../components/people'
 import PdfViewer, { KIND_ICON, Tool } from '../components/PdfViewer'
-import { countPages, PersonPicker, RoleBadge, SeverityBadge, StatusBadge } from '../components/review-bits'
+import { countPages, PersonPicker, RoleBadge, RoleSelect, SeverityBadge, StatusBadge } from '../components/review-bits'
+import { Select } from '../components/Select'
 
 type Tab = 'threads' | 'tasks' | 'people' | 'log'
 
@@ -102,9 +103,8 @@ export default function ReviewPage() {
           </div>
           <div className="meta row wrap">
             {review.revisions.length > 0 && (
-              <select className="rev-select" value={revId} onChange={e => setRevision(Number(e.target.value))} aria-label="Revision">
-                {[...review.revisions].reverse().map(v => <option key={v.id} value={v.id}>v{v.number}{v.id === review.current_revision_id ? ' (current)' : ''} · {fmtDate(v.created_at.slice(0, 10))}</option>)}
-              </select>
+              <Select className="rev-select" value={String(revId)} onChange={v => setRevision(Number(v))} ariaLabel="Revision"
+                options={[...review.revisions].reverse().map(v => ({ value: String(v.id), label: `v${v.number}${v.id === review.current_revision_id ? ' (current)' : ''}`, hint: `${fmtDate(v.created_at.slice(0, 10))} · ${v.filename}` }))} />
             )}
             {rev && <span>{rev.filename} · {fmtBytes(rev.size)}</span>}
             {review.due_date && <span>· due {fmtDate(review.due_date)}</span>}
@@ -260,8 +260,10 @@ function Threads({ review, threads, carried, page, selected, onSelect, reload, o
   return (
     <>
       <div className="thread-filters">
-        <select value={status} onChange={e => setStatus(e.target.value as typeof status)} aria-label="State"><option value="open">Open</option><option value="all">All</option><option value="resolved">Resolved</option><option value="rejected">Rejected</option></select>
-        <select value={kind} onChange={e => setKind(e.target.value as typeof kind)} aria-label="Kind"><option value="">Every kind</option><option value="issue">Issues</option><option value="question">Questions</option><option value="comment">Comments</option></select>
+        <Select value={status} onChange={v => setStatus(v as typeof status)} ariaLabel="State"
+          options={([['open', 'Open'], ['all', 'All'], ['resolved', 'Resolved'], ['rejected', 'Rejected']] as const).map(([v, l]) => ({ value: v, label: l, hint: String(threads.filter(t => v === 'all' || t.status === v).length) }))} />
+        <Select value={kind} onChange={v => setKind(v as typeof kind)} ariaLabel="Kind"
+          options={([['', 'Every kind'], ['issue', 'Issues'], ['question', 'Questions'], ['comment', 'Comments']] as const).map(([v, l]) => ({ value: v, label: l, hint: String(threads.filter(t => !v || t.kind === v).length) }))} />
         <label className="row small"><input type="checkbox" checked={here} onChange={e => setHere(e.target.checked)} style={{ width: 'auto' }} /> Page {page}</label>
       </div>
       {list.length === 0 && <p className="muted small" style={{ padding: '12px 2px' }}>{threads.length ? 'Nothing matches.' : 'No threads yet.'}</p>}
@@ -425,9 +427,8 @@ function TaskModal({ review, from, onClose, onDone }: { review: Review; from: Co
       <form onSubmit={save} className="grid" style={{ gap: 12 }}>
         <Field label="Task"><input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} required maxLength={300} autoFocus /></Field>
         <div className="two-col tight">
-          <Field label="Assignee"><select value={f.assignee_id} onChange={e => setF({ ...f, assignee_id: Number(e.target.value) })}>
-            <option value={0}>Nobody yet</option>{review.participants.map(p => <option key={p.user_id} value={p.user_id}>{personName(p)} ({ROLE_LABEL[p.role]})</option>)}
-          </select></Field>
+          <Field group label="Assignee"><Select value={f.assignee_id ? String(f.assignee_id) : ''} onChange={v => setF({ ...f, assignee_id: Number(v) || 0 })} placeholder="Nobody yet" clearLabel="Nobody yet" ariaLabel="Assignee"
+            options={review.participants.map(p => ({ value: String(p.user_id), label: personName(p), hint: ROLE_LABEL[p.role] }))} /></Field>
           <Field label="Due"><input type="date" value={f.due_date} onChange={e => setF({ ...f, due_date: e.target.value })} /></Field>
         </div>
         <Field label="Notes" help="Optional"><textarea rows={2} value={f.notes} onChange={e => setF({ ...f, notes: e.target.value })} /></Field>
@@ -465,13 +466,11 @@ function People({ review, live, reload }: { review: Review; live: { user_id: num
                 {p.verdict_note && <div className="small quote-inline">“{p.verdict_note}”</div>}
               </div>
               {owner && p.role !== 'owner' ? (
-                <select value={p.role} disabled={busy} onChange={e => {
-                  const role = e.target.value as Role
+                <RoleSelect value={p.role} withOwner disabled={busy} onChange={role => {
+                  if (role === p.role) return
                   if (role === 'owner' && !window.confirm(`Hand the review over to ${personName(p)}? You stay on as a reviewer.`)) return
                   run(() => api.put(`${V1}/reviews/${review.id}/participants/${p.user_id}`, { role }), 'Role changed')
-                }} style={{ width: 'auto' }} title={ROLE_HELP[p.role]}>
-                  <option value="approver">Approver</option><option value="reviewer">Reviewer</option><option value="observer">Observer</option><option value="owner">Make owner…</option>
-                </select>
+                }} />
               ) : <RoleBadge role={p.role} />}
               {owner && p.role !== 'owner' && <button className="btn ghost sm danger-text" disabled={busy} onClick={() => window.confirm(`Take ${personName(p)} off this review?`) && run(() => api.del(`${V1}/reviews/${review.id}/participants/${p.user_id}`), 'Removed')} title="Remove">✕</button>}
             </li>
@@ -498,8 +497,9 @@ function Log({ rid, tick, review, onOpenThread }: { rid: number; tick: number; r
   return (
     <>
       <div className="thread-filters">
-        <select value={kind} onChange={e => setKind(e.target.value)} aria-label="Kind">{KIND_GROUPS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
-        <select value={who} onChange={e => setWho(Number(e.target.value))} aria-label="Who"><option value={0}>Everyone</option>{review.participants.map(p => <option key={p.user_id} value={p.user_id}>{personName(p)}</option>)}</select>
+        <Select value={kind} onChange={setKind} ariaLabel="Kind" options={KIND_GROUPS.map(([k, l]) => ({ value: k, label: l }))} />
+        <Select value={String(who)} onChange={v => setWho(Number(v))} ariaLabel="Who"
+          options={[{ value: '0', label: 'Everyone' }, ...review.participants.map(p => ({ value: String(p.user_id), label: personName(p), hint: ROLE_LABEL[p.role] }))]} />
         <a className="btn ghost sm" href={`${V1}/reviews/${rid}/events.csv`} title="Download the whole log">CSV</a>
       </div>
       {!events ? <Loading /> : events.length === 0 ? <p className="muted small">Nothing yet.</p> : (
