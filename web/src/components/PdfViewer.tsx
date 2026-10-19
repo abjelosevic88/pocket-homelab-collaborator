@@ -125,14 +125,17 @@ export default function PdfViewer(p: Props) {
     const el = pageEls.current.get(p.jump.page)
     const root = scroller.current
     if (!el || !root) return
-    // put the spot in the upper third of the viewer, then make it pulse so the eye finds it
-    root.scrollTo({ top: Math.max(0, el.offsetTop + p.jump.y * el.offsetHeight - root.clientHeight / 3), behavior: 'smooth' })
-    if (!p.jump.threadId) return
-    setFlash(null)
+    // put the spot in the upper third of the viewer; once there, pulse it so the eye finds it
+    const target = Math.max(0, Math.min(root.scrollHeight - root.clientHeight, el.offsetTop + p.jump.y * el.offsetHeight - root.clientHeight / 3))
     const id = p.jump.threadId
-    const on = setTimeout(() => setFlash(id), 60)
-    const off = setTimeout(() => setFlash(f => (f === id ? null : f)), 2200)
-    return () => { clearTimeout(on); clearTimeout(off) }
+    setFlash(null)
+    let off: ReturnType<typeof setTimeout> | undefined
+    const cancel = glide(root, target, () => {
+      if (!id) return
+      setFlash(id)
+      off = setTimeout(() => setFlash(f => (f === id ? null : f)), 1600)
+    })
+    return () => { cancel(); clearTimeout(off) }
   }, [p.jump])
 
   const goPage = (n: number) => {
@@ -332,6 +335,36 @@ function threadClass(t: Comment) {
   if (t.status !== 'open') return `done ${t.status}`
   if (t.kind === 'issue') return `issue ${t.severity}`
   return t.kind
+}
+
+/**
+ * Eased scroll that stays smooth on slow machines: a long jump first snaps to
+ * within one screen of the target (so the pages in between are not drawn
+ * mid-animation), then glides the rest. Wheel/touch/keys by the reader stop
+ * it. With "reduce motion" it jumps straight there.
+ */
+function glide(root: HTMLElement, target: number, done: () => void): () => void {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { root.scrollTop = target; done(); return () => {} }
+  const near = root.clientHeight * 0.9
+  if (Math.abs(target - root.scrollTop) > near * 2) root.scrollTop = target - Math.sign(target - root.scrollTop) * near
+  const from = root.scrollTop, dist = target - from
+  if (Math.abs(dist) < 2) { done(); return () => {} }
+  const dur = Math.min(650, 280 + Math.abs(dist) * 0.35)
+  const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+  let raf = 0, stopped = false
+  const stop = () => { stopped = true; cancelAnimationFrame(raf); off() }
+  const off = () => ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(e => root.removeEventListener(e, stop))
+  ;['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(e => root.addEventListener(e, stop, { passive: true }))
+  const t0 = performance.now()
+  const step = (now: number) => {
+    if (stopped) return
+    const t = Math.min(1, (now - t0) / dur)
+    root.scrollTop = from + dist * ease(t)
+    if (t < 1) raf = requestAnimationFrame(step)
+    else { off(); done() }
+  }
+  raf = requestAnimationFrame(step)
+  return stop
 }
 
 export const KIND_ICON: Record<string, string> = { issue: '!', question: '?', comment: '…' }

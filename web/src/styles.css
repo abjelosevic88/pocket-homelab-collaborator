@@ -529,11 +529,19 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .people-list .role-select .sel-pop, .mini-list .role-select .sel-pop { left: auto; right: 0; }
 .sel-hint { margin-left: auto; padding-left: 10px; color: var(--muted); }
 
-/* arriving at a thread from the sidebar: the highlight and its pin pulse twice */
-@keyframes anno-flash { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 38, 211, 0); } 30% { box-shadow: 0 0 0 6px rgba(192, 38, 211, .45); } }
-@keyframes pin-flash { 0%, 100% { transform: translate(-2px, -8px) scale(1.25); } 30% { transform: translate(-2px, -8px) scale(1.7); } }
-.anno.flash { animation: anno-flash .9s ease-out 2; background: rgba(192, 38, 211, .3); }
-.pin.flash { animation: pin-flash .9s ease-out 2; z-index: 6; }
+/* arriving at a thread from the sidebar: a ring breathes out of the highlight and the pin, twice.
+   Only transform and opacity animate, so it stays on the GPU and smooth on slower machines. */
+.anno { transition: background-color .25s ease; }
+.anno.flash { background: rgba(192, 38, 211, .3); }
+.anno.flash::after, .pin.flash::after { content: ''; position: absolute; pointer-events: none; will-change: transform, opacity;
+  animation: ring-out .8s cubic-bezier(.22, .61, .36, 1) 2; }
+.anno.flash::after { inset: -4px; border: 2px solid var(--accent); border-radius: 5px; }
+.pin.flash::after { inset: -2px; border-radius: inherit; background: inherit; z-index: -1; }
+.pin { transition: transform .25s cubic-bezier(.22, .61, .36, 1); }
+@keyframes ring-out { 0% { opacity: .85; transform: scale(1); } 100% { opacity: 0; transform: scale(1.12); } }
+.pin.flash::after { animation-name: pin-ring; }
+@keyframes pin-ring { 0% { opacity: .6; transform: scale(1); } 100% { opacity: 0; transform: scale(2.3); } }
+@media (prefers-reduced-motion: reduce) { .anno.flash::after, .pin.flash::after { animation: none; } .pin, .anno { transition: none; } }
 .thread:not(.open) { cursor: pointer; }
 .thread.open .thread-head, .thread.open .quote, .thread.open > .body { cursor: pointer; }
 
