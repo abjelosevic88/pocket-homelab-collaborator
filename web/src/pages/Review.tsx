@@ -8,7 +8,7 @@ import { ago, fmtBytes, fmtDate, fmtDateTime, fmtDuration, personName, plural, R
 import { Confirm, Field, Loading, Modal, Segmented, useToast } from '../components/ui'
 import { Avatar, LiveStack } from '../components/people'
 import PdfViewer, { KIND_ICON, Tool } from '../components/PdfViewer'
-import { countPages, PersonPicker, RoleBadge, RoleSelect, SeverityBadge, StatusBadge } from '../components/review-bits'
+import { countPages, isPdf, PdfDrop, PersonPicker, RoleBadge, RoleSelect, SeverityBadge, StatusBadge } from '../components/review-bits'
 import { Select } from '../components/Select'
 
 type Tab = 'threads' | 'tasks' | 'people' | 'log'
@@ -579,7 +579,12 @@ function UploadModal({ review, onClose, onDone }: { review: Review; onClose: () 
   const [progress, setProgress] = useState(0)
   const [busy, setBusy] = useState(false)
   const next = review.revisions.length + 1
-  const pick = async (f?: File) => { if (!f) return; setFile(f); try { setPages(await countPages(f)) } catch { setPages(0) } }
+  const current = review.revisions.find(v => v.id === review.current_revision_id)
+  const pick = async (f: File) => {
+    if (!isPdf(f)) { toast('Only PDF documents for now', 'err'); return }
+    setFile(f)
+    try { setPages(await countPages(f)) } catch { setPages(0); toast('That PDF could not be read — is it damaged or password-protected?', 'err') }
+  }
   const save = async () => {
     if (!file) return
     setBusy(true)
@@ -587,13 +592,13 @@ function UploadModal({ review, onClose, onDone }: { review: Review; onClose: () 
   }
   return (
     <Modal title={next === 1 ? 'Upload the document' : `Upload v${next}`} onClose={onClose}>
-      <div className="grid" style={{ gap: 12 }}>
-        <input type="file" accept="application/pdf,.pdf" onChange={e => pick(e.target.files?.[0])} />
-        {file && <span className="muted small">{fmtBytes(file.size)}{pages > 0 && ` · ${plural(pages, 'page')}`}</span>}
+      <div className="grid" style={{ gap: 14 }}>
+        <PdfDrop file={file} pages={pages} onPick={pick} disabled={busy}
+          hint={current ? `or click to choose one · replaces v${current.number} (${current.filename})` : 'or click to choose one'} />
         {next > 1 && <Field label="What changed?" help="Shown in the log."><input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Net 45, new liability cap" /></Field>}
         {next > 1 && <p className="muted small">Open threads carry over to the new revision. Everyone's verdict is cleared so they look again{review.status === 'changes_requested' ? ', and the review goes back in review' : ''}.</p>}
         {busy && <div className="bar lg"><span className="fill" style={{ width: `${Math.round(progress * 100)}%` }} /></div>}
-        <div className="form-actions"><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!file || busy} onClick={save}>{busy ? `Uploading… ${Math.round(progress * 100)}%` : 'Upload'}</button></div>
+        <div className="form-actions"><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!file || busy} onClick={save}>{busy ? `Uploading… ${Math.round(progress * 100)}%` : `Upload v${next}`}</button></div>
       </div>
     </Modal>
   )

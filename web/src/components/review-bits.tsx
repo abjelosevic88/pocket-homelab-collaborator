@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReviewStatus, Role, Severity, User } from '../lib/types'
-import { ROLE_HELP, ROLE_LABEL, SEVERITY_LABEL, STATUS_LABEL } from '../lib/format'
+import { fmtBytes, plural, ROLE_HELP, ROLE_LABEL, SEVERITY_LABEL, STATUS_LABEL } from '../lib/format'
 import { Select } from './Select'
 
 export function StatusBadge({ status }: { status: ReviewStatus }) {
@@ -58,3 +58,25 @@ export function PersonPicker({ users, exclude, onAdd, busy }: { users: User[]; e
     </div>
   )
 }
+
+/** Drop a PDF here or click to choose one. Shows the picked file with its size and page count. */
+export function PdfDrop({ file, pages, onPick, hint = 'or click to choose one', disabled }: { file: File | null; pages: number; onPick: (f: File) => void; hint?: string; disabled?: boolean }) {
+  const [drag, setDrag] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+  return (
+    <div className={`dropzone ${drag ? 'over' : ''} ${file ? 'has' : ''} ${disabled ? 'disabled' : ''}`} role="button" tabIndex={0}
+      onClick={() => !disabled && input.current?.click()} onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !disabled) { e.preventDefault(); input.current?.click() } }}
+      onDragOver={e => { e.preventDefault(); if (!disabled) setDrag(true) }} onDragLeave={() => setDrag(false)}
+      onDrop={e => { e.preventDefault(); setDrag(false); if (!disabled && e.dataTransfer.files[0]) onPick(e.dataTransfer.files[0]) }}>
+      <span className="drop-ico" aria-hidden>{file
+        ? <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 14l2 2 4-4" /></svg>
+        : <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V4" /><path d="M7 9l5-5 5 5" /><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" /></svg>}</span>
+      {file ? <><b>{file.name}</b><span className="muted">{fmtBytes(file.size)}{pages > 0 && ` · ${plural(pages, 'page')}`} · click or drop to change</span></>
+        : <><b>Drop a PDF here</b><span className="muted">{hint}</span></>}
+      <input ref={input} type="file" accept="application/pdf,.pdf" hidden onChange={e => { if (e.target.files?.[0]) onPick(e.target.files[0]); e.target.value = '' }} />
+    </div>
+  )
+}
+
+/** True when the file looks like a PDF (by type or name). */
+export const isPdf = (f: File) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')

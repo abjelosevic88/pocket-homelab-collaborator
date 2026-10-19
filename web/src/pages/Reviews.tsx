@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, upload, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
@@ -6,7 +6,7 @@ import type { Review, Revision } from '../lib/types'
 import { ago, fmtBytes, fmtDate, personName, plural } from '../lib/format'
 import { Empty, Field, Loading, Modal, PageHeader, Segmented, useAsync, useDebounce, useToast } from '../components/ui'
 import { Avatar } from '../components/people'
-import { countPages, PersonInvite, PersonPicker, RoleBadge, RoleSelect, StatusBadge } from '../components/review-bits'
+import { countPages, isPdf, PdfDrop, PersonInvite, PersonPicker, RoleBadge, RoleSelect, StatusBadge } from '../components/review-bits'
 
 type Filter = 'open' | 'closed' | ''
 
@@ -93,12 +93,10 @@ function NewReview({ onClose }: { onClose: () => void }) {
   const [people, setPeople] = useState<PersonInvite[]>([])
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [drag, setDrag] = useState(false)
-  const input = useRef<HTMLInputElement>(null)
 
   const pick = async (fl: File | undefined) => {
     if (!fl) return
-    if (fl.type !== 'application/pdf' && !fl.name.toLowerCase().endsWith('.pdf')) { toast('Only PDF documents for now', 'err'); return }
+    if (!isPdf(fl)) { toast('Only PDF documents for now', 'err'); return }
     setFile(fl)
     if (!f.title) setF(x => ({ ...x, title: fl.name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ') }))
     try { setPages(await countPages(fl)) } catch { setPages(0); toast('That PDF could not be read — is it damaged or password-protected?', 'err') }
@@ -118,13 +116,7 @@ function NewReview({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="New review" onClose={onClose} size="lg">
       <form onSubmit={save} className="grid" style={{ gap: 14 }}>
-        <div className={`dropzone ${drag ? 'over' : ''} ${file ? 'has' : ''}`} onClick={() => input.current?.click()}
-          onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
-          onDrop={e => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files[0]) }}>
-          {file ? <><b>{file.name}</b><span className="muted">{fmtBytes(file.size)}{pages > 0 && ` · ${plural(pages, 'page')}`} · click to change</span></>
-            : <><b>Drop a PDF here</b><span className="muted">or click to choose one</span></>}
-          <input ref={input} type="file" accept="application/pdf,.pdf" hidden onChange={e => pick(e.target.files?.[0])} />
-        </div>
+        <PdfDrop file={file} pages={pages} onPick={pick} disabled={busy} />
         <Field label="Title"><input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} required maxLength={200} /></Field>
         <Field label="What should reviewers look at?" help="Optional. Shown at the top of the review."><textarea rows={2} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} /></Field>
         <div className="two-col tight">

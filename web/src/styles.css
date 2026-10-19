@@ -581,3 +581,8 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .icon-btn { width: 32px; height: 32px; display: inline-grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.dropzone .drop-ico { display: grid; place-items: center; color: var(--muted); margin-bottom: 4px; }
+.dropzone.has .drop-ico, .dropzone.over .drop-ico { color: var(--accent-hover); }
+.dropzone:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dropzone.disabled { opacity: .6; cursor: default; }
