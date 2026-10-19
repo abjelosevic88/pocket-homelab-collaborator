@@ -3,7 +3,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import type { Anchor, Comment, Rect } from '../lib/types'
-import type { RemoteCursor } from '../lib/live'
+import type { RemoteCursor, RemoteSelection } from '../lib/live'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -25,6 +25,8 @@ interface Props {
   cursors: RemoteCursor[]
   showCursors: boolean
   onCursor: (page: number, x: number, y: number) => void
+  selections: RemoteSelection[]
+  onSelection: (page: number, rects: Rect[]) => void
   jump: { page: number; y: number; nonce: number; threadId?: number } | null
 }
 
@@ -139,14 +141,14 @@ export default function PdfViewer(p: Props) {
   }
 
   // ---- text selection → "Comment" button ----
+  const { onSelection } = p
   const checkSelection = useCallback(() => {
-    if (!p.canComment || p.tool !== 'select') { setSelBtn(null); return }
     const sel = window.getSelection()
-    if (!sel || sel.isCollapsed || !sel.rangeCount) { setSelBtn(null); return }
+    if (!sel || sel.isCollapsed || !sel.rangeCount) { setSelBtn(null); onSelection(0, []); return }
     const range = sel.getRangeAt(0)
     const startEl = (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement) as HTMLElement | null
     const pageEl = startEl?.closest('[data-page]') as HTMLElement | null
-    if (!pageEl || !scroller.current?.contains(pageEl)) { setSelBtn(null); return }
+    if (!pageEl || !scroller.current?.contains(pageEl)) { setSelBtn(null); onSelection(0, []); return }
     const page = Number(pageEl.dataset.page)
     const box = pageEl.getBoundingClientRect()
     const rects: Rect[] = []
@@ -162,10 +164,12 @@ export default function PdfViewer(p: Props) {
       } else rects.push(rect)
     }
     const quote = sel.toString().replace(/\s+/g, ' ').trim()
-    if (!rects.length || !quote) { setSelBtn(null); return }
+    if (!rects.length || !quote) { setSelBtn(null); onSelection(0, []); return }
+    onSelection(page, rects.slice(0, 50))
+    if (!p.canComment || p.tool !== 'select') { setSelBtn(null); return }
     const last = range.getClientRects()[range.getClientRects().length - 1]
     setSelBtn({ x: Math.min(last.right, window.innerWidth - 120), y: last.bottom + 6, page, anchor: { rects: rects.slice(0, 50), quote } })
-  }, [p.canComment, p.tool])
+  }, [p.canComment, p.tool, onSelection])
   useEffect(() => {
     const up = () => setTimeout(checkSelection, 0)
     document.addEventListener('mouseup', up)
@@ -222,6 +226,12 @@ export default function PdfViewer(p: Props) {
               <Overlay threads={threadsByPage.get(n) || []} carried={p.carried} selectedId={p.selectedId} flashId={flash} onSelect={p.onSelect}
                 pending={p.pending?.page === n ? p.pending.anchor : null} />
               {p.tool === 'comment' && p.canComment && <DrawLayer onDone={a => p.onAnchor(n, a)} />}
+              {p.showCursors && p.selections.filter(s => s.page === n).map(s => (
+                <React.Fragment key={'sel' + s.conn}>
+                  {s.rects.map((r, i) => <div key={i} className="remote-sel" style={{ ...rectStyle(r), background: s.color }} />)}
+                  <span className="remote-sel-name" style={{ left: `${s.rects[0].x * 100}%`, top: `${s.rects[0].y * 100}%`, background: s.color }}>{s.name}</span>
+                </React.Fragment>
+              ))}
               {p.showCursors && p.cursors.filter(c => c.page === n).map(c => (
                 <div key={c.conn} className="cursor" style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, color: c.color }}>
                   <svg width="16" height="20" viewBox="0 0 16 20" aria-hidden><path d="M1 1l13 8.5-6 1.2-3 6.3z" fill="currentColor" stroke="#fff" strokeWidth="1.2" strokeLinejoin="round" /></svg>

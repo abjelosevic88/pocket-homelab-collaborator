@@ -32,10 +32,12 @@ import (
 // Browser → server:
 //   {"t":"state","page":3,"visible":true,"input":true}   on change and every few seconds
 //   {"t":"cursor","page":3,"x":0.41,"y":0.2}              page 0 hides the cursor
+//   {"t":"selection","page":3,"rects":[{x,y,w,h}]}         text selected, not yet commented; page 0 clears it
 // Server → browser:
 //   {"t":"hello","conn":"c7","color":"#2563eb"}
 //   {"t":"presence","people":[…]}
 //   {"t":"cursor","conn":"c7","user_id":2,"name":"Ben","color":"…","page":3,"x":…,"y":…}
+//   {"t":"selection","conn":"c7","user_id":2,"name":"Ben","color":"…","page":3,"rects":[…]}
 //   {"t":"changed","what":["comments","events"],"by":2}
 //   {"t":"bye","reason":"removed"}
 
@@ -163,6 +165,7 @@ func (h *hub) leave(c *liveConn) {
 	h.mu.Unlock()
 	h.broadcastPresence(c.reviewID)
 	h.broadcast(c.reviewID, nil, map[string]any{"t": "cursor", "conn": c.id, "page": 0})
+	h.broadcast(c.reviewID, nil, map[string]any{"t": "selection", "conn": c.id, "page": 0})
 }
 
 // push queues a message; a tab that cannot keep up loses cursor frames, not the server.
@@ -321,7 +324,7 @@ func (s *Server) handleLive(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	ws.SetReadLimit(4096)
+	ws.SetReadLimit(16384)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	now := time.Now()
@@ -361,12 +364,13 @@ func (s *Server) handleLive(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		var m struct {
-			T       string  `json:"t"`
-			Page    int     `json:"page"`
-			Visible *bool   `json:"visible"`
-			Input   bool    `json:"input"`
-			X       float64 `json:"x"`
-			Y       float64 `json:"y"`
+			T       string       `json:"t"`
+			Page    int          `json:"page"`
+			Visible *bool        `json:"visible"`
+			Input   bool         `json:"input"`
+			X       float64      `json:"x"`
+			Y       float64      `json:"y"`
+			Rects   []store.Rect `json:"rects"`
 		}
 		if json.Unmarshal(data, &m) != nil {
 			continue
@@ -402,6 +406,16 @@ func (s *Server) handleLive(w http.ResponseWriter, r *http.Request) {
 			s.hub.mu.Unlock()
 			s.hub.broadcast(rv.ID, c, map[string]any{"t": "cursor", "conn": c.id, "user_id": u.ID, "name": displayName(u), "color": c.color,
 				"page": m.Page, "x": math.Max(0, math.Min(1, m.X)), "y": math.Max(0, math.Min(1, m.Y))})
+		case "selection":
+			// text someone has selected (not yet a comment): shown to the others, never stored
+			out := map[string]any{"t": "selection", "conn": c.id, "user_id": u.ID, "name": displayName(u), "color": c.color, "page": 0}
+			if a := cleanAnchor(&store.Anchor{Rects: m.Rects}); a != nil && m.Page > 0 {
+				out["page"], out["rects"] = m.Page, a.Rects
+				s.hub.mu.Lock()
+				c.lastInput = time.Now()
+				s.hub.mu.Unlock()
+			}
+			s.hub.broadcast(rv.ID, c, out)
 		}
 	}
 	ws.Close(websocket.StatusNormalClosure, "")

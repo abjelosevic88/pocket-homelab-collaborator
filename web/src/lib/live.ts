@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Presence } from './types'
+import type { Presence, Rect } from './types'
 
 export interface RemoteCursor { conn: string; user_id: number; name: string; color: string; page: number; x: number; y: number; at: number }
+export interface RemoteSelection { conn: string; user_id: number; name: string; color: string; page: number; rects: Rect[] }
 
 interface Options {
   onChanged?: (what: string[], by: number) => void
@@ -19,7 +20,9 @@ const STATE_EVERY = 5000
 export function useLive(reviewId: number, revisionId: number, opts: Options) {
   const [people, setPeople] = useState<Presence[]>([])
   const [cursors, setCursors] = useState<Record<string, RemoteCursor>>({})
+  const [selections, setSelections] = useState<Record<string, RemoteSelection>>({})
   const [me, setMe] = useState<{ conn: string; color: string } | null>(null)
+  const lastSel = useRef('')
   const [connected, setConnected] = useState(false)
   const ws = useRef<WebSocket | null>(null)
   const page = useRef(1)
@@ -52,7 +55,24 @@ export function useLive(reviewId: number, revisionId: number, opts: Options) {
         try { m = JSON.parse(ev.data) } catch { return }
         switch (m.t) {
           case 'hello': setMe({ conn: m.conn as string, color: m.color as string }); break
-          case 'presence': setPeople(m.people as Presence[]); break
+          case 'presence': {
+            const ppl = m.people as Presence[]
+            setPeople(ppl)
+            // someone new may have joined: let them see what is selected here, drop selections of tabs that left
+            if (lastSel.current) send(JSON.parse(lastSel.current))
+            setSelections(cur => Object.fromEntries(Object.entries(cur).filter(([c]) => ppl.some(p => p.conn === c))))
+            break
+          }
+          case 'selection': {
+            const sel = m as unknown as RemoteSelection
+            setSelections(cur => {
+              const next = { ...cur }
+              if (!sel.page || !sel.rects?.length) delete next[sel.conn]
+              else next[sel.conn] = sel
+              return next
+            })
+            break
+          }
           case 'cursor': {
             const c = m as unknown as RemoteCursor
             setCursors(cur => {
@@ -71,6 +91,7 @@ export function useLive(reviewId: number, revisionId: number, opts: Options) {
         setConnected(false)
         setPeople([])
         setCursors({})
+        setSelections({})
         if (stopped) return
         timer = setTimeout(connect, retry)
         retry = Math.min(retry * 2, 30000)
@@ -121,5 +142,13 @@ export function useLive(reviewId: number, revisionId: number, opts: Options) {
     send({ t: 'cursor', page: p, x, y })
   }, [send])
 
-  return { people, cursors, me, connected, setPage, sendCursor }
+  /** Share the text selected here (page 0 / no rects clears it). Sent only when it changes. */
+  const sendSelection = useCallback((p: number, rects: Rect[]) => {
+    const msg = p && rects.length ? JSON.stringify({ t: 'selection', page: p, rects }) : ''
+    if (msg === lastSel.current) return
+    lastSel.current = msg
+    send(msg ? JSON.parse(msg) : { t: 'selection', page: 0 })
+  }, [send])
+
+  return { people, cursors, selections, me, connected, setPage, sendCursor, sendSelection }
 }

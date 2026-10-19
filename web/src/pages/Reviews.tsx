@@ -5,7 +5,7 @@ import { useApp } from '../lib/app-context'
 import type { Review, Revision } from '../lib/types'
 import { ago, fmtBytes, fmtDate, personName, plural } from '../lib/format'
 import { Empty, Field, Loading, Modal, PageHeader, Segmented, useAsync, useDebounce, useToast } from '../components/ui'
-import { Avatar, LiveStack } from '../components/people'
+import { Avatar } from '../components/people'
 import { countPages, PersonInvite, PersonPicker, RoleBadge, RoleSelect, StatusBadge } from '../components/review-bits'
 
 type Filter = 'open' | 'closed' | ''
@@ -43,7 +43,8 @@ export default function Reviews() {
 export function ReviewRow({ r, why }: { r: Review; why?: string }) {
   const { user } = useApp()
   const owner = r.participants.find(p => p.role === 'owner')
-  const others = r.participants.filter(p => p.role !== 'owner')
+  const others = r.participants.filter(p => p.user_id !== user?.id)
+  const live = new Map((r.live_now || []).map(p => [p.user_id, p]))
   const rev = r.revisions.find(v => v.id === r.current_revision_id)
   const overdue = r.due_date && r.due_date < new Date().toISOString().slice(0, 10) && !['approved', 'rejected', 'cancelled'].includes(r.status)
   return (
@@ -64,8 +65,14 @@ export function ReviewRow({ r, why }: { r: Review; why?: string }) {
         </div>
       </div>
       <div className="side">
-        {r.live_now && r.live_now.length > 0 && <span className="live-dot" title="Open right now"><LiveStack people={r.live_now} max={3} /></span>}
-        <span className="avatar-stack">{others.slice(0, 5).map(p => <Avatar key={p.user_id} id={p.user_id} name={personName(p)} title={`${personName(p)} — ${p.role}${p.verdict ? `, ${p.verdict}` : ''}`} />)}</span>
+        <span className="avatar-stack">{others.slice(0, 6).map(p => {
+          const l = live.get(p.user_id)
+          return (
+            <span key={p.user_id} className={`pa ${l ? 'is-live' : ''}`} title={`${personName(p)} — ${p.role}${p.verdict ? `, ${p.verdict}` : ''}${l ? ` · here now, page ${l.page}` : ''}`}>
+              <Avatar id={p.user_id} name={personName(p)} title="" />{l && <span className="pg">{l.page}</span>}
+            </span>
+          )
+        })}</span>
         <span className="counts">
           {r.open_issues > 0 && <span className="badge sev-major" title="Open issues">! {r.open_issues}</span>}
           <span className="badge" title="Open threads / all threads">💬 {r.open_threads}/{r.threads}</span>

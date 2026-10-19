@@ -132,7 +132,8 @@ export default function ReviewPage() {
               onAnchor={(pg, a) => { setPending({ page: pg, anchor: a }); setTab('threads'); setSelected(null); setTool('select') }}
               onPage={onPage} onPageCount={onPageCount}
               cursors={Object.values(live.cursors).filter(c => c.conn !== live.me?.conn)} showCursors={showCursors}
-              onCursor={live.sendCursor} jump={jump} />
+              onCursor={live.sendCursor} jump={jump}
+              selections={Object.values(live.selections).filter(s => s.conn !== live.me?.conn)} onSelection={live.sendSelection} />
           ) : (
             <div className="card pad"><b>No document yet.</b> {role === 'owner' ? <button className="btn primary sm" onClick={() => setModal('upload')}>Upload the PDF</button> : 'The owner has not uploaded it yet.'}</div>
           )}
@@ -149,14 +150,14 @@ export default function ReviewPage() {
                 onSaved={c => { setPending(null); loadThreads(); loadReview(); setSelected(c.id) }} />}
               {!pending && canComment && <p className="muted small hint">Select text in the document and press <b>Comment</b>, or switch to <b>▭ Comment area</b> and drag a box. {!isCurrent && 'You are on an older revision; new comments go on it.'}</p>}
               <Threads review={review} threads={shown} carried={carried} page={page} selected={selected} onSelect={select}
-                reload={() => { loadThreads(); loadReview() }} onTask={c => setTaskFrom(c)} locked={locked} />
+                reload={() => { loadThreads(); loadReview() }} onTask={c => setTaskFrom(c)} locked={locked} tasks={tasks} onOpenTasks={() => setTab('tasks')} />
             </>}
             {tab === 'tasks' && <Tasks review={review} tasks={tasks} threads={threads} locked={locked} onNew={() => setTaskFrom(null)} reload={() => { loadTasks(); loadReview() }} onOpenThread={t => select(t)} />}
             {tab === 'people' && <People review={review} live={live.people} reload={loadReview} />}
             {tab === 'log' && <Log rid={rid} tick={logTick} review={review} onOpenThread={cid => { const t = threads.find(x => x.id === cid || x.replies?.some(r => r.id === cid)); if (t) select(t) }} />}
           </div>
           <div className="side-foot row">
-            <label className="row small muted"><input type="checkbox" checked={showCursors} onChange={e => { setShowCursors(e.target.checked); localStorage.setItem('pcl-cursors', e.target.checked ? '1' : '0') }} style={{ width: 'auto' }} /> Show others' cursors</label>
+            <label className="row small muted"><input type="checkbox" checked={showCursors} onChange={e => { setShowCursors(e.target.checked); localStorage.setItem('pcl-cursors', e.target.checked ? '1' : '0') }} style={{ width: 'auto' }} /> Show others' cursors and selections</label>
             <span className="spacer" />
             {me && <span className="muted small" title="Measured while this document is open, visible and in use">Your time: {fmtDuration(me.active_seconds)}</span>}
           </div>
@@ -244,8 +245,9 @@ function Composer({ rid, revisionId, pending, onCancel, onSaved }: { rid: number
 
 // ---------- threads ----------
 
-function Threads({ review, threads, carried, page, selected, onSelect, reload, onTask, locked }: {
+function Threads({ review, threads, carried, page, selected, onSelect, reload, onTask, locked, tasks, onOpenTasks }: {
   review: Review; threads: Comment[]; carried: Set<number>; page: number; selected: number | null; onSelect: (t: Comment) => void; reload: () => void; onTask: (c: Comment) => void; locked: boolean
+  tasks: Task[]; onOpenTasks: () => void
 }) {
   const [status, setStatus] = useState<'open' | 'all' | 'resolved' | 'rejected'>('open')
   const [kind, setKind] = useState<'' | CommentKind>('')
@@ -270,7 +272,7 @@ function Threads({ review, threads, carried, page, selected, onSelect, reload, o
       <div className="thread-list">
         {list.map(t => (
           <div key={t.id} ref={selected === t.id ? selRef : undefined}>
-            <ThreadCard review={review} t={t} carried={carried.has(t.id)} open={selected === t.id} onSelect={() => onSelect(t)} reload={reload} onTask={() => onTask(t)} locked={locked} />
+            <ThreadCard review={review} t={t} carried={carried.has(t.id)} open={selected === t.id} onSelect={() => onSelect(t)} reload={reload} onTask={() => onTask(t)} locked={locked} tasks={tasks.filter(x => x.comment_id === t.id)} onOpenTasks={onOpenTasks} />
           </div>
         ))}
       </div>
@@ -278,7 +280,7 @@ function Threads({ review, threads, carried, page, selected, onSelect, reload, o
   )
 }
 
-function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked }: { review: Review; t: Comment; carried: boolean; open: boolean; onSelect: () => void; reload: () => void; onTask: () => void; locked: boolean }) {
+function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked, tasks, onOpenTasks }: { review: Review; t: Comment; carried: boolean; open: boolean; onSelect: () => void; reload: () => void; onTask: () => void; locked: boolean; tasks: Task[]; onOpenTasks: () => void }) {
   const { user } = useApp()
   const { toast } = useToast()
   const [reply, setReply] = useState('')
@@ -314,6 +316,15 @@ function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked
         {(t.replies?.length ?? 0) > 0 && !open && <span className="badge">↩ {t.replies!.length}</span>}
       </div>
       {t.anchor?.quote && <blockquote className="quote">{t.anchor.quote}</blockquote>}
+      {tasks.length > 0 && (
+        <div className="thread-tasks">
+          {tasks.map(k => (
+            <button key={k.id} type="button" className={`task-chip ${k.status}`} onClick={onOpenTasks} title="Open in Tasks">
+              <span>{k.status === 'done' ? '☑' : '☐'}</span><span className="grow">{k.title}</span><span className="muted">{k.assignee_id ? `→ ${k.assignee_name}` : 'unassigned'}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {editing?.id === t.id ? <EditBox review={review} c={t} onDone={() => { setEditing(null); reload() }} /> :
         <div className={`body ${open ? '' : 'clamp'}`}>{t.deleted ? <i className="muted">deleted</i> : t.body}</div>}
       {open && <>
@@ -417,7 +428,9 @@ function Tasks({ review, tasks, threads, locked, onNew, reload, onOpenThread }: 
 
 function TaskModal({ review, from, onClose, onDone }: { review: Review; from: Comment | null; onClose: () => void; onDone: () => void }) {
   const { toast } = useToast()
-  const [f, setF] = useState({ title: from ? from.body.split('\n')[0].slice(0, 200) : '', notes: '', assignee_id: from && review.my_role !== 'owner' ? review.owner_id : 0, due_date: '' })
+  const { user } = useApp()
+  // whoever makes the task owns it until they hand it to someone
+  const [f, setF] = useState({ title: from ? from.body.split('\n')[0].slice(0, 200) : '', notes: '', assignee_id: user?.id || 0, due_date: '' })
   const [busy, setBusy] = useState(false)
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true)

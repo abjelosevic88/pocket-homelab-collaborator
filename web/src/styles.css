@@ -536,3 +536,28 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .pin.flash { animation: pin-flash .9s ease-out 2; z-index: 6; }
 .thread:not(.open) { cursor: pointer; }
 .thread.open .thread-head, .thread.open .quote, .thread.open > .body { cursor: pointer; }
+
+/* text someone else has selected right now (not a comment yet) */
+.remote-sel { position: absolute; z-index: 3; opacity: .22; border-radius: 2px; pointer-events: none; }
+.remote-sel-name { position: absolute; z-index: 7; transform: translateY(-100%); margin-top: -2px; color: #fff; font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px 5px 5px 0; white-space: nowrap; pointer-events: none; }
+
+/* review list: one avatar per person; those in the document right now get a green ring and their page */
+.avatar-stack .pa { position: relative; display: inline-flex; margin-left: -6px; }
+.avatar-stack .pa:first-child { margin-left: 0; }
+.avatar-stack .pa .avatar { margin-left: 0; }
+.avatar-stack .pa.is-live { z-index: 1; margin-right: 6px; }
+.avatar-stack .pa.is-live .avatar { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--green); }
+.avatar-stack .pa .pg { position: absolute; right: -8px; bottom: -6px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--text); color: var(--bg);
+  font-size: 9px; font-weight: 700; line-height: 15px; text-align: center; box-shadow: 0 0 0 2px var(--surface); }
+/* tasks made from a thread, shown on the thread */
+.thread-tasks { display: grid; gap: 4px; margin-top: 8px; }
+.task-chip { display: flex; gap: 8px; align-items: center; width: 100%; font: inherit; font-size: 12.5px; text-align: left; padding: 5px 9px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; }
+.task-chip:hover { border-color: var(--accent); }
+.task-chip .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-chip.done .grow { text-decoration: line-through; color: var(--muted); }
+.thread-tasks { grid-template-columns: minmax(0, 1fr); }
+.task-chip { min-width: 0; }
+.task-chip .grow { min-width: 0; }
+.task-chip > span:last-child { flex-shrink: 0; }
+.thread { min-width: 0; overflow-wrap: anywhere; }
+.avatar-stack .pa.is-live { margin-right: 10px; }

@@ -17,7 +17,7 @@ export default function Tasks() {
   const today = new Date().toISOString().slice(0, 10)
   return (
     <>
-      <PageHeader title="Your tasks" sub="Everything assigned to you, across your reviews." actions={<Segmented value={which} onChange={setWhich} options={[{ value: 'open', label: 'Open' }, { value: 'all', label: 'All' }]} />} />
+      <PageHeader title="Your tasks" sub="Everything assigned to you across your reviews, plus unassigned tasks you created." actions={<Segmented value={which} onChange={setWhich} options={[{ value: 'open', label: 'Open' }, { value: 'all', label: 'All' }]} />} />
       {loading && !data ? <Loading /> : !data?.length ? <div className="card"><Empty title={which === 'open' ? 'No open tasks' : 'No tasks'}>Tasks come out of reviews: anyone on a review can turn a thread into a task and give it to someone.</Empty></div> : (
         [...groups.entries()].map(([rid, ts]) => (
           <div key={rid} className="card mb">

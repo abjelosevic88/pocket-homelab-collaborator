@@ -42,13 +42,14 @@ func (s *Store) ListTasks(ctx context.Context, reviewID int64) ([]Task, error) {
 	return s.queryTasks(ctx, `t.review_id = ?`, reviewID)
 }
 
-// MyTasks returns the tasks assigned to a person on reviews they are still on.
+// MyTasks returns the tasks assigned to a person, plus unassigned ones they
+// created, on reviews they are still on.
 func (s *Store) MyTasks(ctx context.Context, userID int64, openOnly bool) ([]Task, error) {
-	w := `t.assignee_id = ? AND EXISTS (SELECT 1 FROM participants p WHERE p.review_id = t.review_id AND p.user_id = ?)`
+	w := `(t.assignee_id = ? OR (t.assignee_id IS NULL AND t.created_by = ?)) AND EXISTS (SELECT 1 FROM participants p WHERE p.review_id = t.review_id AND p.user_id = ?)`
 	if openOnly {
 		w += ` AND t.status = 'open'`
 	}
-	return s.queryTasks(ctx, w, userID, userID)
+	return s.queryTasks(ctx, w, userID, userID, userID)
 }
 
 // GetTask returns one task of a review.
