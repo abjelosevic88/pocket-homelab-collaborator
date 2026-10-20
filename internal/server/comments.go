@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"fmt"
 	"math"
 	"net/http"
@@ -138,7 +139,9 @@ func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 		c.Category = snippet(in.Category, 40)
 		c.Anchor = cleanAnchor(in.Anchor)
 	}
-	if err := s.store.CreateComment(ctx, c); err != nil {
+	if err := s.store.CreateComment(ctx, c, func(tx *sql.Tx) error {
+		return s.queueEvent(ctx, tx, "collaborator.comment_added", fmt.Sprint(c.ID), s.eventPayload(ctx, rv, map[string]any{"comment_id": c.ID, "kind": c.Kind, "severity": c.Severity, "page": c.Page, "text": snippet(c.Body, 200)}))
+	}); err != nil {
 		s.fail(w, err, "create comment")
 		return
 	}
@@ -157,7 +160,7 @@ func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 		summary = fmt.Sprintf("Commented #%d: %s", c.ID, snippet(c.Body, 120))
 	}
 	s.event(ctx, rv, store.Event{Kind: kind, CommentID: c.ID, RevisionID: c.RevisionID, Page: c.Page, Summary: summary}, "comments", "review")
-	s.publish("collaborator.comment_added", fmt.Sprint(c.ID), s.eventPayload(ctx, rv, map[string]any{"comment_id": c.ID, "kind": c.Kind, "severity": c.Severity, "page": c.Page, "text": snippet(c.Body, 200)}))
+
 	out, _ := s.store.GetComment(ctx, rv.ID, c.ID)
 	writeJSON(w, http.StatusCreated, out)
 }

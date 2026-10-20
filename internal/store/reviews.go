@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
 	"strings"
 )
 
@@ -53,7 +54,12 @@ func (s *Store) UpdateReview(ctx context.Context, r *Review) error {
 
 // SetReviewStatus moves a review to a new status, stamping when it started
 // and when it was decided.
-func (s *Store) SetReviewStatus(ctx context.Context, id int64, status string) error {
+func (s *Store) SetReviewStatus(ctx context.Context, id int64, status string, after ...core.CommitHook) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	now := Now()
 	q := `UPDATE reviews SET status = ?, updated_at = ?`
 	args := []any{status, now}
@@ -67,8 +73,11 @@ func (s *Store) SetReviewStatus(ctx context.Context, id int64, status string) er
 	default:
 		q += `, decided_at = NULL`
 	}
-	_, err := s.DB.ExecContext(ctx, q+` WHERE id = ?`, append(args, id)...)
-	return err
+	_, err = tx.ExecContext(ctx, q+` WHERE id = ?`, append(args, id)...)
+	if err != nil {
+		return err
+	}
+	return core.Commit(tx, after...)
 }
 
 // TouchReview bumps updated_at.

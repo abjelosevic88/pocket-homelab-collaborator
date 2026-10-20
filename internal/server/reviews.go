@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -326,19 +327,21 @@ func (s *Server) handleReviewStatus(w http.ResponseWriter, r *http.Request) {
 	if note != "" {
 		summary += ": " + note
 	}
-	if err := s.store.SetReviewStatus(ctx, rv.ID, to); err != nil {
+	if err := s.store.SetReviewStatus(ctx, rv.ID, to, func(tx *sql.Tx) error {
+		switch to {
+		case store.StatusInReview:
+			if in.Action == "start" {
+				return s.queueEvent(ctx, tx, "collaborator.review_started", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title}))
+			}
+		case store.StatusApproved, store.StatusCancelled:
+			return s.queueEvent(ctx, tx, "collaborator.review_decided", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title, "status": to}))
+		}
+		return nil
+	}); err != nil {
 		s.fail(w, err, "set status")
 		return
 	}
 	s.event(ctx, rv, store.Event{Kind: kind, Summary: summary, RevisionID: rv.CurrentRevisionID}, "review", "people")
-	switch to {
-	case store.StatusInReview:
-		if in.Action == "start" {
-			s.publish("collaborator.review_started", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title}))
-		}
-	case store.StatusApproved, store.StatusCancelled:
-		s.publish("collaborator.review_decided", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title, "status": to}))
-	}
 	out, _ := s.store.GetReview(ctx, rv.ID, actorID(ctx))
 	writeJSON(w, http.StatusOK, out)
 }
@@ -409,22 +412,23 @@ func (s *Server) handleVerdict(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if to != "" {
-			if err := s.store.SetReviewStatus(ctx, rv.ID, to); err != nil {
+			if err := s.store.SetReviewStatus(ctx, rv.ID, to, func(tx *sql.Tx) error {
+				if to != store.StatusChangesRequested {
+					return s.queueEvent(ctx, tx, "collaborator.review_decided", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title, "status": to}))
+				}
+				return nil
+			}); err != nil {
 				s.fail(w, err, "set status")
 				return
 			}
 			s.event(ctx, rv, store.Event{Kind: "review." + to, Summary: "The review is now " + statusLabel(to), RevisionID: rv.CurrentRevisionID}, "review")
-			if to != store.StatusChangesRequested {
-				s.publish("collaborator.review_decided", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title, "status": to}))
-			}
 		}
 	}
 	out, _ := s.store.GetReview(ctx, rv.ID, u.ID)
 	writeJSON(w, http.StatusOK, out)
 }
 
-// eventPayload adds who acted and who may see it: Core's bus has no audience
-// of its own, so subscribers filter on audience_emails.
+// eventPayload records the actor and review participants for consumers.
 func (s *Server) eventPayload(ctx context.Context, rv *store.Review, p map[string]any) map[string]any {
 	p["review_id"] = rv.ID
 	p["user_email"] = userFrom(ctx).Email

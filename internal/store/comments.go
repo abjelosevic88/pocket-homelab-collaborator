@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
 )
 
 const commentCols = `c.id, c.review_id, COALESCE(c.revision_id, 0), COALESCE(c.parent_id, 0), COALESCE(c.author_id, 0), COALESCE(NULLIF(u.name, ''), u.email, ''),
@@ -30,7 +31,12 @@ func scanComment(row interface{ Scan(...any) error }) (*Comment, error) {
 func nullID(id int64) sql.NullInt64 { return sql.NullInt64{Int64: id, Valid: id != 0} }
 
 // CreateComment inserts a thread root or a reply.
-func (s *Store) CreateComment(ctx context.Context, c *Comment) error {
+func (s *Store) CreateComment(ctx context.Context, c *Comment, after ...core.CommitHook) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	anchor := ""
 	if c.Anchor != nil && (len(c.Anchor.Rects) > 0 || c.Anchor.Quote != "") {
 		b, _ := json.Marshal(c.Anchor)
@@ -38,14 +44,14 @@ func (s *Store) CreateComment(ctx context.Context, c *Comment) error {
 	}
 	c.CreatedAt = Now()
 	c.Status = "open"
-	res, err := s.DB.ExecContext(ctx, `INSERT INTO comments (review_id, revision_id, parent_id, author_id, kind, severity, category, body, page, anchor, status, created_at)
+	res, err := tx.ExecContext(ctx, `INSERT INTO comments (review_id, revision_id, parent_id, author_id, kind, severity, category, body, page, anchor, status, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)`, c.ReviewID, nullID(c.RevisionID), nullID(c.ParentID), c.AuthorID, c.Kind, c.Severity, c.Category,
 		c.Body, c.Page, anchor, c.CreatedAt)
 	if err != nil {
 		return err
 	}
 	c.ID, _ = res.LastInsertId()
-	return nil
+	return core.Commit(tx, after...)
 }
 
 // GetComment returns one comment of a review.
