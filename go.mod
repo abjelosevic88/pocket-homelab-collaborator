@@ -3,7 +3,7 @@ module github.com/abjelosevic88/pocket-homelab-collaborator
 go 1.26.5
 
 require (
-	github.com/abjelosevic88/pocket-homelab-core v0.3.0
+	github.com/abjelosevic88/pocket-homelab-core v0.18.5
 	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-pdf/fpdf v0.9.0
@@ -22,3 +22,6 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
+
+// Reviewed SDK snapshot; see third_party/pocket-core/sdk.lock.json.
+replace github.com/abjelosevic88/pocket-homelab-core => ./third_party/pocket-core

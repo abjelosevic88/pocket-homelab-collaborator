@@ -52,7 +52,7 @@ func New(cfg *config.Config, st *store.Store, log *slog.Logger, webFS fs.FS) *Se
 	ua := "PocketCollaborator/" + Version + " (+https://github.com/abjelosevic88/pocket-homelab-collaborator)"
 	s := &Server{cfg: cfg, store: st, log: log, webFS: webFS, started: time.Now(),
 		oidc: &oidcProvider{issuerURL: cfg.OIDCIssuer},
-		core: core.New(cfg.CoreURL, core.Options{TokenFile: cfg.DataDir + "/core.token", UserAgent: ua})}
+		core: core.New(cfg.CoreURL, core.Options{DB: st.DB, TokenFile: cfg.DataDir + "/core.token", UserAgent: ua})}
 	s.hub = newHub(s)
 	return s
 }
@@ -60,6 +60,9 @@ func New(cfg *config.Config, st *store.Store, log *slog.Logger, webFS fs.FS) *Se
 // Bootstrap seeds the first admin (if configured) and demo data, and starts
 // the review clock.
 func (s *Server) Bootstrap(ctx context.Context) error {
+	if err := s.core.Start(ctx); err != nil {
+		return err
+	}
 	n, err := s.store.CountUsers(ctx)
 	if err != nil {
 		return err
@@ -147,18 +150,16 @@ func (s *Server) registerWithCore(ctx context.Context) error {
 	return nil
 }
 
-// publish sends an event to Core without blocking the request.
+// publish persists an event locally; the SDK retries network delivery.
 func (s *Server) publish(topic, subject string, payload map[string]any) {
 	if !s.core.Configured() {
 		return
 	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := s.core.Publish(ctx, topic, subject, payload); err != nil {
-			s.log.Warn("pocket core: publish failed", "topic", topic, "err", err)
-		}
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.core.Publish(ctx, topic, subject, payload); err != nil {
+		s.log.Warn("pocket core: outbox enqueue failed", "topic", topic, "err", err)
+	}
 }
 
 // coreStatus summarises the Pocket Core link for the About page.
@@ -350,7 +351,7 @@ func displayName(u *store.User) string {
 // ---------- health / metrics ----------
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "version": Version, "uptime": time.Since(s.started).Round(time.Second).String()})
+	writeJSON(w, http.StatusOK, map[string]any{"core_outbox": s.coreOutboxHealth(r.Context()), "status": "ok", "version": Version, "uptime": time.Since(s.started).Round(time.Second).String()})
 }
 
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
