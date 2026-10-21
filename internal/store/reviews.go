@@ -9,13 +9,13 @@ import (
 
 // A review is visible to the people on it and to nobody else, admins included.
 const reviewCols = `r.id, r.title, r.description, r.kind, COALESCE(r.owner_id, 0), r.status, r.due_date, r.require_resolved,
-	COALESCE(r.current_revision_id, 0), r.started_at, r.decided_at, r.created_at, r.updated_at`
+	COALESCE(r.current_revision_id, 0), r.started_at, r.decided_at, r.created_at, r.updated_at, r.source_app, r.source_ref, r.source_url, r.source_label`
 
 func scanReview(row interface{ Scan(...any) error }, extra ...any) (*Review, error) {
 	var r Review
 	var req int
 	dst := append([]any{&r.ID, &r.Title, &r.Description, &r.Kind, &r.OwnerID, &r.Status, &r.DueDate, &req,
-		&r.CurrentRevisionID, &r.StartedAt, &r.DecidedAt, &r.CreatedAt, &r.UpdatedAt}, extra...)
+		&r.CurrentRevisionID, &r.StartedAt, &r.DecidedAt, &r.CreatedAt, &r.UpdatedAt, &r.SourceApp, &r.SourceRef, &r.SourceURL, &r.SourceLabel}, extra...)
 	if err := row.Scan(dst...); err != nil {
 		return nil, notFound(err)
 	}
@@ -31,8 +31,8 @@ func (s *Store) CreateReview(ctx context.Context, r *Review) error {
 	}
 	defer tx.Rollback()
 	now := Now()
-	res, err := tx.ExecContext(ctx, `INSERT INTO reviews (title, description, kind, owner_id, status, due_date, require_resolved, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, r.Title, r.Description, r.Kind, r.OwnerID, StatusDraft, r.DueDate, boolInt(r.RequireResolved), now, now)
+	res, err := tx.ExecContext(ctx, `INSERT INTO reviews (title, description, kind, owner_id, status, due_date, require_resolved, created_at, updated_at, source_app, source_ref, source_url, source_label)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, r.Title, r.Description, r.Kind, r.OwnerID, StatusDraft, r.DueDate, boolInt(r.RequireResolved), now, now, r.SourceApp, r.SourceRef, r.SourceURL, r.SourceLabel)
 	if err != nil {
 		return err
 	}
@@ -47,9 +47,70 @@ func (s *Store) CreateReview(ctx context.Context, r *Review) error {
 
 // UpdateReview saves title, description, due date, approval rule and owner.
 func (s *Store) UpdateReview(ctx context.Context, r *Review) error {
-	_, err := s.DB.ExecContext(ctx, `UPDATE reviews SET title = ?, description = ?, due_date = ?, require_resolved = ?, owner_id = ?, updated_at = ? WHERE id = ?`,
-		r.Title, r.Description, r.DueDate, boolInt(r.RequireResolved), r.OwnerID, Now(), r.ID)
+	_, err := s.DB.ExecContext(ctx, `UPDATE reviews SET title = ?, description = ?, due_date = ?, require_resolved = ?, owner_id = ?, updated_at = ?,
+		source_app = ?, source_ref = ?, source_url = ?, source_label = ? WHERE id = ?`,
+		r.Title, r.Description, r.DueDate, boolInt(r.RequireResolved), r.OwnerID, Now(), r.SourceApp, r.SourceRef, r.SourceURL, r.SourceLabel, r.ID)
 	return err
+}
+
+// FindOpenBySource returns the newest unfinished review the person owns for a
+// source reference, so a document sent again becomes a new revision.
+func (s *Store) FindOpenBySource(ctx context.Context, ownerID int64, ref string) (*Review, error) {
+	var role string
+	r, err := scanReview(s.DB.QueryRowContext(ctx, `SELECT `+reviewCols+`, p.role FROM reviews r
+		JOIN participants p ON p.review_id = r.id AND p.user_id = ? AND p.role = 'owner'
+		WHERE r.source_ref = ? AND r.status NOT IN ('approved', 'rejected', 'cancelled') ORDER BY r.created_at DESC LIMIT 1`, ownerID, ref), &role)
+	if err != nil {
+		return nil, err
+	}
+	r.MyRole = role
+	return r, s.fillReview(ctx, r)
+}
+
+// SourceSummary is what a sending app shows as a badge next to its file.
+type SourceSummary struct {
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Status      string `json:"status"`
+	SourceRef   string `json:"source_ref"`
+	Revisions   int    `json:"revisions"`
+	OpenThreads int    `json:"open_threads"`
+	OpenIssues  int    `json:"open_issues"`
+	UpdatedAt   string `json:"updated_at"`
+	MyRole      string `json:"my_role"`
+}
+
+// LookupBySource lists the reviews a person is on whose source reference is
+// one of refs, newest first (an app asks for a whole folder at once).
+func (s *Store) LookupBySource(ctx context.Context, userID int64, refs []string) ([]SourceSummary, error) {
+	if len(refs) == 0 {
+		return []SourceSummary{}, nil
+	}
+	args := []any{userID}
+	ph := make([]string, len(refs))
+	for i, ref := range refs {
+		ph[i] = "?"
+		args = append(args, ref)
+	}
+	rows, err := s.DB.QueryContext(ctx, `SELECT r.id, r.title, r.status, r.source_ref, r.updated_at, p.role,
+		(SELECT COUNT(1) FROM revisions v WHERE v.review_id = r.id),
+		(SELECT COUNT(1) FROM comments c WHERE c.review_id = r.id AND c.parent_id IS NULL AND c.deleted = 0 AND c.status = 'open'),
+		(SELECT COUNT(1) FROM comments c WHERE c.review_id = r.id AND c.parent_id IS NULL AND c.deleted = 0 AND c.kind = 'issue' AND c.status = 'open')
+		FROM reviews r JOIN participants p ON p.review_id = r.id AND p.user_id = ?
+		WHERE r.source_ref IN (`+strings.Join(ph, ",")+`) ORDER BY r.updated_at DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SourceSummary{}
+	for rows.Next() {
+		var x SourceSummary
+		if err := rows.Scan(&x.ID, &x.Title, &x.Status, &x.SourceRef, &x.UpdatedAt, &x.MyRole, &x.Revisions, &x.OpenThreads, &x.OpenIssues); err != nil {
+			return nil, err
+		}
+		out = append(out, x)
+	}
+	return out, rows.Err()
 }
 
 // SetReviewStatus moves a review to a new status, stamping when it started

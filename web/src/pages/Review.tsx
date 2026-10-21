@@ -8,7 +8,7 @@ import { ago, fmtBytes, fmtDate, fmtDateTime, fmtDuration, personName, plural, R
 import { Confirm, Field, Loading, Modal, Segmented, useToast } from '../components/ui'
 import { Avatar, LiveStack } from '../components/people'
 import PdfViewer, { KIND_ICON, Tool } from '../components/PdfViewer'
-import { countPages, isPdf, PdfDrop, PersonPicker, RoleBadge, RoleSelect, SeverityBadge, StatusBadge } from '../components/review-bits'
+import { countPages, isPdf, PdfDrop, PersonPicker, RoleBadge, RoleSelect, SeverityBadge, StatusBadge, SourceChip } from '../components/review-bits'
 import { Select } from '../components/Select'
 
 type Tab = 'threads' | 'tasks' | 'people' | 'log'
@@ -110,6 +110,7 @@ export default function ReviewPage() {
             {review.due_date && <span>· due {fmtDate(review.due_date)}</span>}
             {review.open_issues > 0 && <span className="badge sev-major">{plural(review.open_issues, 'open issue')}</span>}
             {!isCurrent && <span className="badge warn">Viewing an older revision</span>}
+            <SourceChip review={review} />
           </div>
         </div>
         <div className="head-live">

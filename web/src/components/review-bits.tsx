@@ -80,3 +80,14 @@ export function PdfDrop({ file, pages, onPick, hint = 'or click to choose one', 
 
 /** True when the file looks like a PDF (by type or name). */
 export const isPdf = (f: File) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+
+const SOURCE_APPS: Record<string, string> = { office: 'Pocket Office', documents: 'Pocket Documents' }
+
+/** Where the document came from, with a way back to the original. */
+export function SourceChip({ review, small }: { review: { source_app: string; source_url: string; source_label: string }; small?: boolean }) {
+  if (!review.source_app) return null
+  const app = SOURCE_APPS[review.source_app] || review.source_app
+  const body = <>↗ {small ? app : `From ${app}`}{review.source_label && !small ? ` · ${review.source_label}` : ''}</>
+  if (!review.source_url) return <span className={`badge source ${small ? 'sm' : ''}`} title={review.source_label}>{body}</span>
+  return <a className={`badge source ${small ? 'sm' : ''}`} href={review.source_url} target="_blank" rel="noreferrer" title={`Open the original in ${app}${review.source_label ? ' — ' + review.source_label : ''}`} onClick={e => e.stopPropagation()}>{body}</a>
+}

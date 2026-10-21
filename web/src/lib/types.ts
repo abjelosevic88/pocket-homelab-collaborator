@@ -57,6 +57,10 @@ export interface Review {
   decided_at: string | null
   created_at: string
   updated_at: string
+  source_app: string
+  source_ref: string
+  source_url: string
+  source_label: string
   participants: Participant[]
   revisions: Revision[]
   my_role: Role

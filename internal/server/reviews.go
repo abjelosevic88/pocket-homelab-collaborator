@@ -133,6 +133,11 @@ type reviewInput struct {
 	DueDate         string   `json:"due_date"`
 	RequireResolved *bool    `json:"require_resolved"`
 	People          []invite `json:"people"`
+	// Source: set by apps that send documents here (see import.go).
+	SourceApp   *string `json:"source_app"`
+	SourceRef   *string `json:"source_ref"`
+	SourceURL   *string `json:"source_url"`
+	SourceLabel *string `json:"source_label"`
 }
 
 type invite struct {
@@ -224,6 +229,21 @@ func (s *Server) handleUpdateReview(w http.ResponseWriter, r *http.Request) {
 	if in.RequireResolved != nil && *in.RequireResolved != rv.RequireResolved {
 		changes = append(changes, "approval rule")
 		rv.RequireResolved = *in.RequireResolved
+	}
+	if in.SourceApp != nil || in.SourceRef != nil || in.SourceURL != nil || in.SourceLabel != nil {
+		changes = append(changes, "source")
+		if in.SourceApp != nil {
+			rv.SourceApp = strings.TrimSpace(*in.SourceApp)
+		}
+		if in.SourceRef != nil {
+			rv.SourceRef = strings.TrimSpace(*in.SourceRef)
+		}
+		if in.SourceURL != nil {
+			rv.SourceURL = strings.TrimSpace(*in.SourceURL)
+		}
+		if in.SourceLabel != nil {
+			rv.SourceLabel = strings.TrimSpace(*in.SourceLabel)
+		}
 	}
 	if len(changes) == 0 {
 		writeJSON(w, http.StatusOK, rv)

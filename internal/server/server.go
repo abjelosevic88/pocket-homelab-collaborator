@@ -133,6 +133,7 @@ func (s *Server) registerWithCore(ctx context.Context) error {
 		Icon:        "/favicon.svg", Version: Version,
 		URL: s.cfg.CoreAppURL, PublicURL: s.cfg.BaseURL, HealthPath: "/healthz", EnvPrefix: "COLLABORATOR",
 		Publishes: []string{"collaborator.review_started", "collaborator.comment_added", "collaborator.review_decided"},
+		Offers:    linkOffers,
 	}
 	// Ask Core for a relying-party client so "Sign in with Pocket Core" needs no configuration.
 	if s.cfg.BaseURL != "" {
@@ -182,6 +183,7 @@ func (s *Server) Router() http.Handler {
 			r.Use(s.requireAuth)
 			r.With(s.withReview).Get("/reviews/{rid}/live", s.handleLive)
 			r.With(s.withReview).Post("/reviews/{rid}/revisions", s.handleUploadRevision)
+			r.Post("/reviews/import", s.handleImportReview)
 			r.With(s.withReview).Get("/reviews/{rid}/revisions/{vid}/file", s.handleRevisionFile)
 		})
 
@@ -206,6 +208,7 @@ func (s *Server) Router() http.Handler {
 				r.Get("/tasks", s.handleMyTasks)
 
 				r.Get("/reviews", s.handleListReviews)
+				r.Get("/reviews/lookup", s.handleLookup)
 				r.Post("/reviews", s.handleCreateReview)
 				r.Route("/reviews/{rid}", func(r chi.Router) {
 					r.Use(s.withReview)

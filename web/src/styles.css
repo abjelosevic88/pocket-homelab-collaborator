@@ -586,3 +586,8 @@ a.stat:hover { border-color: var(--accent); text-decoration: none; }
 .dropzone.has .drop-ico, .dropzone.over .drop-ico { color: var(--accent-hover); }
 .dropzone:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dropzone.disabled { opacity: .6; cursor: default; }
+
+/* ---- source of a review (Pocket Office / Documents) ---- */
+.badge.source { background: var(--accent-soft); color: var(--accent-hover); border: 1px solid transparent; text-decoration: none; }
+a.badge.source:hover { border-color: var(--accent); text-decoration: none; }
+.badge.source.sm { font-size: 10.5px; }

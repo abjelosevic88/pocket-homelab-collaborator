@@ -6,7 +6,7 @@ import type { Review, Revision } from '../lib/types'
 import { ago, fmtBytes, fmtDate, personName, plural } from '../lib/format'
 import { Empty, Field, Loading, Modal, PageHeader, Segmented, useAsync, useDebounce, useToast } from '../components/ui'
 import { Avatar } from '../components/people'
-import { countPages, isPdf, PdfDrop, PersonInvite, PersonPicker, RoleBadge, RoleSelect, StatusBadge } from '../components/review-bits'
+import { countPages, isPdf, PdfDrop, PersonInvite, PersonPicker, RoleBadge, RoleSelect, StatusBadge, SourceChip } from '../components/review-bits'
 
 type Filter = 'open' | 'closed' | ''
 
@@ -56,6 +56,7 @@ export function ReviewRow({ r, why }: { r: Review; why?: string }) {
           <StatusBadge status={r.status} />
           <RoleBadge role={r.my_role} />
           {why && <span className="badge warn">{why}</span>}
+          <SourceChip review={r} small />
         </div>
         <div className="meta">
           {owner && owner.user_id !== user?.id && <>by {personName(owner)} · </>}

@@ -53,6 +53,9 @@ func (s *Server) resolveUser(r *http.Request) (*store.User, error) {
 		tok = t
 	}
 	if tok != "" {
+		if s.core.Configured() && core.IsLinkToken(tok) {
+			return s.linkUser(ctx, tok, r)
+		}
 		if s.core.Configured() && core.IsCoreToken(tok) {
 			return s.coreUser(ctx, tok)
 		}

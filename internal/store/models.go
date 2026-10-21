@@ -55,6 +55,12 @@ type Review struct {
 	DecidedAt         *string `json:"decided_at"`
 	CreatedAt         string  `json:"created_at"`
 	UpdatedAt         string  `json:"updated_at"`
+	// Source: the app the document came from (office, documents), a stable
+	// reference that app looks up, a link back to the original and a label.
+	SourceApp   string `json:"source_app"`
+	SourceRef   string `json:"source_ref"`
+	SourceURL   string `json:"source_url"`
+	SourceLabel string `json:"source_label"`
 
 	// Joined / derived, read-only.
 	Participants []Participant `json:"participants"`
