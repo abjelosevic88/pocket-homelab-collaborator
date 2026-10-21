@@ -4,6 +4,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import type { Anchor, Comment, Rect } from '../lib/types'
 import type { RemoteCursor, RemoteSelection } from '../lib/live'
+import { Icon } from './icons'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -200,21 +201,21 @@ export default function PdfViewer(p: Props) {
       <div className="viewer-bar">
         {p.canComment && (
           <div className="segmented sm" role="radiogroup" aria-label="Tool">
-            <button type="button" className={p.tool === 'select' ? 'active' : ''} onClick={() => p.setTool('select')} title="Select text, then comment on it">𝐓 Select text</button>
-            <button type="button" className={p.tool === 'comment' ? 'active' : ''} onClick={() => p.setTool(p.tool === 'comment' ? 'select' : 'comment')} title="Drag a box (or click a point) on the page to comment on it">▭ Comment area</button>
+            <button type="button" className={p.tool === 'select' ? 'active' : ''} onClick={() => p.setTool('select')} title="Select text, then comment on it"><Icon name="type" size={13} />Select text</button>
+            <button type="button" className={p.tool === 'comment' ? 'active' : ''} onClick={() => p.setTool(p.tool === 'comment' ? 'select' : 'comment')} title="Drag a box (or click a point) on the page to comment on it"><Icon name="box-select" size={13} />Comment area</button>
           </div>
         )}
         <span className="spacer" />
         {sizes.length > 0 && <span className="row page-ind">
-          <button className="btn ghost sm" onClick={() => goPage(current - 1)} disabled={current <= 1} aria-label="Previous page">‹</button>
+          <button type="button" className="btn ghost sm" onClick={() => goPage(current - 1)} disabled={current <= 1} aria-label="Previous page"><Icon name="chevron-left" size={15} /></button>
           <input aria-label="Page" className="page-input" value={current} onChange={e => { const n = Number(e.target.value); if (n) goPage(n) }} />
           <span className="muted small">/ {sizes.length}</span>
-          <button className="btn ghost sm" onClick={() => goPage(current + 1)} disabled={current >= sizes.length} aria-label="Next page">›</button>
+          <button type="button" className="btn ghost sm" onClick={() => goPage(current + 1)} disabled={current >= sizes.length} aria-label="Next page"><Icon name="chevron-right" size={15} /></button>
         </span>}
         <span className="row zoom">
-          <button className="btn ghost sm" onClick={() => zoomBy(-1)} aria-label="Zoom out">−</button>
-          <button className="btn ghost sm zoom-val" onClick={() => setZoom(1)} title="Fit width">{Math.round(zoom * 100)}%</button>
-          <button className="btn ghost sm" onClick={() => zoomBy(1)} aria-label="Zoom in">+</button>
+          <button type="button" className="btn ghost sm" onClick={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out"><Icon name="zoom-out" size={15} /></button>
+          <button type="button" className="btn ghost sm zoom-val" onClick={() => setZoom(1)} title="Fit width">{Math.round(zoom * 100)}%</button>
+          <button type="button" className="btn ghost sm" onClick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in"><Icon name="zoom-in" size={15} /></button>
         </span>
       </div>
       <div className={`viewer-scroll tool-${p.tool}`} ref={scroller} onScroll={() => selBtn && setSelBtn(null)} onPointerLeave={() => p.onCursor(0, 0, 0)}>
@@ -246,10 +247,10 @@ export default function PdfViewer(p: Props) {
         })}
       </div>
       {selBtn && (
-        <button className="btn primary sm sel-comment" style={{ left: selBtn.x, top: selBtn.y }}
+        <button type="button" className="btn primary sm sel-comment" style={{ left: selBtn.x, top: selBtn.y }}
           onMouseDown={e => e.preventDefault()}
           onClick={() => { p.onAnchor(selBtn.page, selBtn.anchor); setSelBtn(null); window.getSelection()?.removeAllRanges() }}>
-          💬 Comment
+          <Icon name="message" size={14} />Comment
         </button>
       )}
     </div>

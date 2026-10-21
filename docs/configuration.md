@@ -38,7 +38,7 @@ See [review-time.md](review-time.md) for how these play together.
 | `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_NAME` | — | Any OpenID Connect provider (PocketID, Authentik, Keycloak…). Callback: `BASE_URL/api/v1/auth/oidc/callback`. |
 | `OIDC_AUTO_CREATE` | `true` | Unknown verified emails get a member account. |
 
-People invited to a review by email get an account without a password: they sign in with single sign-on, or an admin sets a password under Settings → Users.
+People invited to a review by email get an account without a password: they sign in with single sign-on, or an admin sets a password under Settings → People.
 
 ## Pocket Core
 

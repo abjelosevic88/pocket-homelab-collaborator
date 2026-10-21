@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, V1 } from '../lib/api'
 import type { Task } from '../lib/types'
 import { ago, fmtDate } from '../lib/format'
+import { Icon } from '../components/icons'
 import { Empty, Loading, PageHeader, Segmented, useAsync, useToast } from '../components/ui'
 
 export default function Tasks() {
@@ -18,11 +19,11 @@ export default function Tasks() {
   return (
     <>
       <PageHeader title="Your tasks" sub="Everything assigned to you across your reviews, plus unassigned tasks you created." actions={<Segmented value={which} onChange={setWhich} options={[{ value: 'open', label: 'Open' }, { value: 'all', label: 'All' }]} />} />
-      {loading && !data ? <Loading /> : !data?.length ? <div className="card"><Empty title={which === 'open' ? 'No open tasks' : 'No tasks'}>Tasks come out of reviews: anyone on a review can turn a thread into a task and give it to someone.</Empty></div> : (
+      {loading && !data ? <Loading /> : !data?.length ? <div className="card"><Empty icon="check-square" title={which === 'open' ? 'No open tasks' : 'No tasks'}>Tasks come out of reviews: anyone on a review can turn a thread into a task and give it to someone.</Empty></div> : (
         [...groups.entries()].map(([rid, ts]) => (
           <div key={rid} className="card mb">
-            <div className="card-head"><h2><Link to={`/reviews/${rid}`}>{ts[0].review_title}</Link></h2></div>
-            <ul className="task-list pad-x">
+            <div className="card-head"><h2><Icon name="file" size={16} /><Link to={`/reviews/${rid}`}>{ts[0].review_title}</Link></h2></div>
+            <ul className="task-list pad-x tasks-page">
               {ts.map(t => (
                 <li key={t.id} className={t.status}>
                   <input type="checkbox" checked={t.status === 'done'} onChange={() => toggle(t)} style={{ width: 'auto' }} aria-label="Done" />

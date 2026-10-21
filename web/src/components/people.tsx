@@ -2,7 +2,7 @@ import type { Presence } from '../lib/types'
 import { colorFor, initials } from '../lib/format'
 
 /** A round avatar with initials, coloured by user id so a person looks the same everywhere. */
-export function Avatar({ id, name, size = '', color, ring, title }: { id: number; name: string; size?: '' | 'sm' | 'lg'; color?: string; ring?: string; title?: string }) {
+export function Avatar({ id, name, size = '', color, ring, title }: { id: number; name: string; size?: '' | 'sm' | 'lg' | 'xl'; color?: string; ring?: string; title?: string }) {
   return (
     <span className={`avatar ${size}`} style={{ background: color || colorFor(id), boxShadow: ring ? `0 0 0 2px var(--surface), 0 0 0 4px ${ring}` : undefined }} title={title ?? name}>
       {initials(name)}

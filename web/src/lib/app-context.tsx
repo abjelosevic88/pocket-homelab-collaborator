@@ -5,12 +5,16 @@ import { setDateFormats } from './format'
 
 interface AuthStatus { needs_setup: boolean; auth_mode: string; authenticated: boolean; user: User | null; version: string; title: string; oidc?: boolean; oidc_name?: string }
 
+export type ThemeMode = 'system' | 'light' | 'dark'
+
 interface AppState {
   status: AuthStatus | null
   user: User | null
   settings: Settings | null
   users: User[]
+  themeMode: ThemeMode
   theme: 'light' | 'dark'
+  setThemeMode: (m: ThemeMode) => void
   toggleTheme: () => void
   refresh: () => Promise<void>
   reloadUsers: () => Promise<void>
@@ -26,9 +30,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [users, setUsers] = useState<User[]>([])
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('pcl-theme') as 'light' | 'dark') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
-
-  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('pcl-theme', theme) }, [theme])
+  // the theme follows the system unless someone picks light or dark (the old key always pinned one)
+  const [themeMode, setThemeModeRaw] = useState<ThemeMode>(() => (localStorage.getItem('pcl-theme-mode') as ThemeMode) || 'system')
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const h = () => setSystemDark(mq.matches)
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
+  }, [])
+  const theme: 'light' | 'dark' = themeMode === 'system' ? (systemDark ? 'dark' : 'light') : themeMode
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', theme === 'dark' ? '#111113' : '#ffffff'))
+  }, [theme])
+  const setThemeMode = useCallback((m: ThemeMode) => {
+    setThemeModeRaw(m)
+    localStorage.removeItem('pcl-theme')
+    if (m === 'system') localStorage.removeItem('pcl-theme-mode'); else localStorage.setItem('pcl-theme-mode', m)
+  }, [])
   useEffect(() => { if (settings?.title) document.title = settings.title }, [settings?.title])
   useEffect(() => { if (settings) setDateFormats(settings.date_format || 'auto', settings.time_format || 'auto') }, [settings?.date_format, settings?.time_format]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -51,5 +71,5 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('pcl:unauthorized', h)
   }, [])
 
-  return <Ctx.Provider value={{ status, user, settings, users, theme, toggleTheme: () => setTheme(t => t === 'dark' ? 'light' : 'dark'), refresh, reloadUsers, setUser, setSettings }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ status, user, settings, users, themeMode, theme, setThemeMode, toggleTheme: () => setThemeMode(theme === 'dark' ? 'light' : 'dark'), refresh, reloadUsers, setUser, setSettings }}>{children}</Ctx.Provider>
 }

@@ -5,7 +5,9 @@ import { useApp } from '../lib/app-context'
 import type { Review, Revision } from '../lib/types'
 import { ago, fmtBytes, fmtDate, personName, plural } from '../lib/format'
 import { Empty, Field, Loading, Modal, PageHeader, Segmented, useAsync, useDebounce, useToast } from '../components/ui'
+import { Icon } from '../components/icons'
 import { Avatar } from '../components/people'
+import { announceChange, openNewReview } from '../components/Layout'
 import { countPages, isPdf, PdfDrop, PersonInvite, PersonPicker, RoleBadge, RoleSelect, StatusBadge, SourceChip } from '../components/review-bits'
 
 type Filter = 'open' | 'closed' | ''
@@ -14,28 +16,29 @@ export default function Reviews() {
   const [params, setParams] = useSearchParams()
   const [filter, setFilter] = useState<Filter>((params.get('status') as Filter) ?? 'open')
   const [role, setRole] = useState(params.get('role') || '')
+  // the sidebar, the palette and Home link here with ?status= / ?role= while the page may already be open
+  useEffect(() => { setFilter((params.get('status') as Filter) ?? 'open'); setRole(params.get('role') || '') }, [params])
   const [q, setQ] = useState('')
   const dq = useDebounce(q, 250)
-  const [creating, setCreating] = useState(params.get('new') === '1')
   const { data, loading, reload } = useAsync(() => api.get<Review[]>(`${V1}/reviews?status=${filter}&role=${role}&q=${encodeURIComponent(dq)}`), [filter, role, dq])
   useEffect(() => { const t = setInterval(reload, 30000); return () => clearInterval(t) }, [reload])
+  const setParam = (k: string, v: string) => setParams(p => { if (v || k === 'status') p.set(k, v); else p.delete(k); return p }, { replace: true })
 
   return (
     <>
       <PageHeader title="Reviews" sub="Every document you are on, as owner, approver, reviewer or observer."
-        actions={<button className="btn primary" onClick={() => setCreating(true)}>+ New review</button>} />
+        actions={<button type="button" className="btn primary" onClick={openNewReview}><Icon name="plus" size={15} strokeWidth={2.2} />New review</button>} />
       <div className="toolbar">
-        <Segmented value={filter} onChange={v => { setFilter(v); setParams(p => { p.set('status', v); return p }) }} options={[{ value: 'open', label: 'Open' }, { value: 'closed', label: 'Finished' }, { value: '', label: 'All' }]} />
-        <Segmented size="sm" value={role} onChange={setRole} options={[{ value: '', label: 'Any role' }, { value: 'owner', label: 'Mine' }, { value: 'approver', label: 'To approve' }, { value: 'reviewer', label: 'To review' }, { value: 'observer', label: 'Watching' }]} />
-        <div className="search"><span className="ico">⌕</span><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search titles…" /></div>
+        <Segmented value={filter} onChange={v => { setFilter(v); setParam('status', v) }} options={[{ value: 'open', label: 'Open' }, { value: 'closed', label: 'Finished' }, { value: '', label: 'All' }]} label="State" />
+        <Segmented size="sm" value={role} onChange={v => { setRole(v); setParam('role', v) }} options={[{ value: '', label: 'Any role' }, { value: 'owner', label: 'Mine' }, { value: 'approver', label: 'To approve' }, { value: 'reviewer', label: 'To review' }, { value: 'observer', label: 'Watching' }]} label="My role" />
+        <div className="search"><Icon name="search" size={15} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search titles…" aria-label="Search titles" /></div>
       </div>
       {loading && !data ? <Loading /> : !data?.length ? (
-        <div className="card"><Empty title={filter === 'open' ? 'Nothing under review' : 'No reviews here'}>Upload a PDF, add an approver and reviewers, and start the review.</Empty>
-          <div className="row" style={{ justifyContent: 'center', paddingBottom: 24 }}><button className="btn primary" onClick={() => setCreating(true)}>+ New review</button></div></div>
+        <div className="card"><Empty icon="review" title={filter === 'open' ? 'Nothing under review' : 'No reviews here'}>Upload a PDF, add an approver and reviewers, and start the review.</Empty>
+          <div className="row" style={{ justifyContent: 'center', paddingBottom: 28 }}><button type="button" className="btn primary" onClick={openNewReview}><Icon name="plus" size={15} strokeWidth={2.2} />New review</button></div></div>
       ) : (
         <div className="review-list">{data.map(r => <ReviewRow key={r.id} r={r} />)}</div>
       )}
-      {creating && <NewReview onClose={() => { setCreating(false); setParams(p => { p.delete('new'); return p }) }} />}
     </>
   )
 }
@@ -75,16 +78,17 @@ export function ReviewRow({ r, why }: { r: Review; why?: string }) {
           )
         })}</span>
         <span className="counts">
-          {r.open_issues > 0 && <span className="badge sev-major" title="Open issues">! {r.open_issues}</span>}
-          <span className="badge" title="Open threads / all threads">💬 {r.open_threads}/{r.threads}</span>
-          {r.open_tasks > 0 && <span className="badge" title="Open tasks">☐ {r.open_tasks}</span>}
+          {r.open_issues > 0 && <span className="badge sev-major" title="Open issues"><Icon name="alert" size={12} />{r.open_issues}</span>}
+          <span className="badge" title="Open threads / all threads"><Icon name="message" size={12} />{r.open_threads}/{r.threads}</span>
+          {r.open_tasks > 0 && <span className="badge" title="Open tasks"><Icon name="square" size={12} />{r.open_tasks}</span>}
         </span>
       </div>
     </Link>
   )
 }
 
-function NewReview({ onClose }: { onClose: () => void }) {
+/** The "New review" dialog; the shell opens it (sidebar button, n, the FAB, ?new=1). */
+export function NewReview({ onClose }: { onClose: () => void }) {
   const { users, user } = useApp()
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -110,6 +114,8 @@ function NewReview({ onClose }: { onClose: () => void }) {
       const rv = await api.post<Review>(`${V1}/reviews`, { ...f, people })
       await upload<Revision>(`${V1}/reviews/${rv.id}/revisions`, { file, page_count: String(pages) }, setProgress)
       toast('Review created')
+      announceChange()
+      onClose()
       navigate(`/reviews/${rv.id}`)
     } catch (e) { toast((e as Error).message, 'err'); setBusy(false) }
   }
@@ -128,12 +134,12 @@ function NewReview({ onClose }: { onClose: () => void }) {
           {people.length > 0 && <ul className="mini-list">{people.map((p, i) => (
             <li key={i}><Avatar id={p.user_id || i + 100} name={label(p)} /><span className="grow">{label(p)}</span>
               <RoleSelect value={p.role} onChange={role => setPeople(ps => ps.map((x, j) => j === i ? { ...x, role } : x))} />
-              <button type="button" className="btn ghost sm" onClick={() => setPeople(ps => ps.filter((_, j) => j !== i))}>✕</button></li>
+              <button type="button" className="btn ghost icon-only sm" aria-label={`Remove ${label(p)}`} onClick={() => setPeople(ps => ps.filter((_, j) => j !== i))}><Icon name="x" size={15} /></button></li>
           ))}</ul>}
           <PersonPicker users={users} exclude={[user!.id, ...people.map(p => p.user_id || 0)]} onAdd={p => setPeople(ps => [...ps, p])} />
         </Field>
         {busy && <div className="bar lg"><span className="fill" style={{ width: `${Math.round(progress * 100)}%` }} /></div>}
-        <div className="form-actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !file}>{busy ? `Uploading… ${Math.round(progress * 100)}%` : 'Create review'}</button></div>
+        <div className="form-actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="submit" className="btn primary" disabled={busy || !file}>{busy ? `Uploading… ${Math.round(progress * 100)}%` : 'Create review'}</button></div>
         <p className="muted small">The review starts as a draft: look it over, then press <b>Start review</b> to open it to everyone.</p>
       </form>
     </Modal>

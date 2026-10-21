@@ -6,6 +6,8 @@ import { fmtDateTime, fmtDuration, plural, REVIEWER_VERDICT_LABEL, ROLE_LABEL, S
 import { Card, Empty, Loading, PageHeader, Segmented, useAsync } from '../components/ui'
 import { Avatar } from '../components/people'
 import { RoleBadge, SeverityBadge, StatusBadge } from '../components/review-bits'
+import { Icon } from '../components/icons'
+import { useCrumb } from '../components/Layout'
 
 /** Seconds → a step of the sequential ramp (0 = nothing, 1..9 = light → dark), square-root scaled so short visits still show. */
 function step(sec: number, max: number): number {
@@ -19,7 +21,8 @@ export default function ReportPage() {
   const { id } = useParams()
   const [rev, setRev] = useState(0)
   const { data: r, loading, error } = useAsync(() => api.get<Report>(`${V1}/reviews/${id}/report${rev ? `?revision=${rev}` : ''}`), [id, rev])
-  if (error) return <div className="callout danger">{error}</div>
+  useCrumb(r?.review.title)
+  if (error) return <div className="callout danger"><Icon name="alert" size={15} /><span>{error}</span></div>
   if (loading && !r) return <Loading />
   if (!r) return null
   const t = r.totals
@@ -30,10 +33,10 @@ export default function ReportPage() {
         title={<span className="row wrap" style={{ gap: 8 }}>{r.review.title} <StatusBadge status={r.review.status} /></span>}
         sub={<>Review report · owner {r.review.owner} · started {r.review.started_at ? fmtDateTime(r.review.started_at) : 'not yet'}{r.review.decided_at && ` · decided ${fmtDateTime(r.review.decided_at)}`} · generated {fmtDateTime(r.generated_at)}</>}
         actions={<>
-          <Link className="btn" to={`/reviews/${id}`}>← Document</Link>
-          <a className="btn" href={`${V1}/reviews/${id}/comments.csv`}>Comments CSV</a>
-          <a className="btn" href={`${V1}/reviews/${id}/events.csv`}>Log CSV</a>
-          <a className="btn primary" href={`${V1}/reviews/${id}/report.pdf${rev ? `?revision=${rev}` : ''}`}>Download PDF</a>
+          <Link className="btn" to={`/reviews/${id}`}><Icon name="arrow-left" size={15} />Document</Link>
+          <a className="btn" href={`${V1}/reviews/${id}/comments.csv`}><Icon name="download" size={15} />Comments CSV</a>
+          <a className="btn" href={`${V1}/reviews/${id}/events.csv`}><Icon name="download" size={15} />Log CSV</a>
+          <a className="btn primary" href={`${V1}/reviews/${id}/report.pdf${rev ? `?revision=${rev}` : ''}`}><Icon name="download" size={15} />Download PDF</a>
         </>} />
 
       <div className="stats">
@@ -113,7 +116,7 @@ export default function ReportPage() {
           {r.tasks.length === 0 ? <p className="muted">No tasks.</p> : (
             <ul className="task-list">
               {r.tasks.map(tk => (
-                <li key={tk.id} className={tk.status}><span>{tk.status === 'done' ? '☑' : '☐'}</span><div className="grow"><div className="t-title">{tk.title}</div><div className="muted small">{tk.assignee_name || 'unassigned'}{tk.due_date && ` · due ${tk.due_date}`}{tk.done_at && ` · done ${fmtDateTime(tk.done_at)}`}</div></div></li>
+                <li key={tk.id} className={tk.status}><span className="task-box"><Icon name={tk.status === 'done' ? 'check-square' : 'square'} size={15} /></span><div className="grow"><div className="t-title">{tk.title}</div><div className="muted small">{tk.assignee_name || 'unassigned'}{tk.due_date && ` · due ${tk.due_date}`}{tk.done_at && ` · done ${fmtDateTime(tk.done_at)}`}</div></div></li>
               ))}
             </ul>
           )}

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { ReviewStatus, Role, Severity, User } from '../lib/types'
 import { fmtBytes, plural, ROLE_HELP, ROLE_LABEL, SEVERITY_LABEL, STATUS_LABEL } from '../lib/format'
 import { Select } from './Select'
+import { Icon } from './icons'
 
 export function StatusBadge({ status }: { status: ReviewStatus }) {
   return <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
@@ -87,7 +88,7 @@ const SOURCE_APPS: Record<string, string> = { office: 'Pocket Office', documents
 export function SourceChip({ review, small }: { review: { source_app: string; source_url: string; source_label: string }; small?: boolean }) {
   if (!review.source_app) return null
   const app = SOURCE_APPS[review.source_app] || review.source_app
-  const body = <>↗ {small ? app : `From ${app}`}{review.source_label && !small ? ` · ${review.source_label}` : ''}</>
+  const body = <><Icon name="external" size={11} />{small ? app : `From ${app}`}{review.source_label && !small ? ` · ${review.source_label}` : ''}</>
   if (!review.source_url) return <span className={`badge source ${small ? 'sm' : ''}`} title={review.source_label}>{body}</span>
   return <a className={`badge source ${small ? 'sm' : ''}`} href={review.source_url} target="_blank" rel="noreferrer" title={`Open the original in ${app}${review.source_label ? ' — ' + review.source_label : ''}`} onClick={e => e.stopPropagation()}>{body}</a>
 }

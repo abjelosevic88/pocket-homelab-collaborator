@@ -5,7 +5,9 @@ import { useApp } from '../lib/app-context'
 import { useLive } from '../lib/live'
 import type { Anchor, Comment, CommentKind, Event, Participant, Review, Revision, Role, Severity, Task, ThreadStatus, Verdict } from '../lib/types'
 import { ago, fmtBytes, fmtDate, fmtDateTime, fmtDuration, personName, plural, REVIEWER_VERDICT_LABEL, ROLE_HELP, ROLE_LABEL, VERDICT_LABEL } from '../lib/format'
-import { Confirm, Field, Loading, Modal, Segmented, useToast } from '../components/ui'
+import { Confirm, Field, Loading, MenuButton, Modal, Segmented, useToast } from '../components/ui'
+import { Icon } from '../components/icons'
+import { announceChange, useCrumb } from '../components/Layout'
 import { Avatar, LiveStack } from '../components/people'
 import PdfViewer, { KIND_ICON, Tool } from '../components/PdfViewer'
 import { countPages, isPdf, PdfDrop, PersonPicker, RoleBadge, RoleSelect, SeverityBadge, StatusBadge, SourceChip } from '../components/review-bits'
@@ -40,6 +42,8 @@ export default function ReviewPage() {
   const loadTasks = useCallback(() => api.get<Task[]>(`${V1}/reviews/${rid}/tasks`).then(setTasks).catch(() => {}), [rid])
   useEffect(() => { loadReview(); loadThreads(); loadTasks() }, [loadReview, loadThreads, loadTasks])
 
+  useCrumb(review?.title)
+
   const revId = Number(params.get('v')) || review?.current_revision_id || 0
   const rev = review?.revisions.find(v => v.id === revId)
   const isCurrent = revId === review?.current_revision_id
@@ -71,7 +75,7 @@ export default function ReviewPage() {
     return { shown, carried }
   }, [threads, revId, isCurrent, review, rev])
 
-  if (err) return <div className="callout danger">{err === 'not found' ? 'This review does not exist, or you are not on it.' : err} <Link to="/reviews">Back to reviews</Link></div>
+  if (err) return <div className="callout danger"><Icon name="alert" size={15} /><span>{err === 'not found' ? 'This review does not exist, or you are not on it.' : err} <Link to="/reviews">Back to reviews</Link></span></div>
   if (!review) return <Loading />
 
   const me = review.participants.find(p => p.user_id === user?.id)
@@ -87,7 +91,7 @@ export default function ReviewPage() {
     setJump({ page: t.page || 1, y, nonce: Date.now(), threadId: t.id })
   }
   const runStatus = async (action: string, note = '') => {
-    try { setReview(await api.post<Review>(`${V1}/reviews/${rid}/status`, { action, note })); toast('Done') } catch (e) { toast((e as Error).message, 'err') }
+    try { setReview(await api.post<Review>(`${V1}/reviews/${rid}/status`, { action, note })); announceChange(); toast('Done') } catch (e) { toast((e as Error).message, 'err') }
   }
   const setRevision = (v: number) => setParams(p => { if (v === review.current_revision_id) p.delete('v'); else p.set('v', String(v)); return p })
 
@@ -96,7 +100,7 @@ export default function ReviewPage() {
       <header className="review-head">
         <div className="grow" style={{ minWidth: 0 }}>
           <div className="row wrap" style={{ gap: 8 }}>
-            <Link to="/reviews" className="btn ghost sm" title="All reviews">←</Link>
+            <Link to="/reviews" className="btn ghost icon-only sm back-btn" title="All reviews" aria-label="All reviews"><Icon name="arrow-left" size={16} /></Link>
             <h1 className="review-title" title={review.title}>{review.title}</h1>
             <StatusBadge status={review.status} />
             <RoleBadge role={role} />
@@ -119,7 +123,7 @@ export default function ReviewPage() {
         </div>
         <div className="actions row wrap">
           <Actions review={review} me={me} decider={decider} onStatus={runStatus} openModal={setModal} />
-          <Link className="btn" to={`/reviews/${rid}/report`}>Report</Link>
+          <Link className="btn" to={`/reviews/${rid}/report`}><Icon name="chart" size={15} />Report</Link>
         </div>
       </header>
       {review.description && <p className="review-desc">{review.description}</p>}
@@ -136,20 +140,20 @@ export default function ReviewPage() {
               onCursor={live.sendCursor} jump={jump}
               selections={Object.values(live.selections).filter(s => s.conn !== live.me?.conn)} onSelection={live.sendSelection} />
           ) : (
-            <div className="card pad"><b>No document yet.</b> {role === 'owner' ? <button className="btn primary sm" onClick={() => setModal('upload')}>Upload the PDF</button> : 'The owner has not uploaded it yet.'}</div>
+            <div className="card pad no-doc"><Icon name="file" size={22} /><b>No document yet.</b> {role === 'owner' ? <button type="button" className="btn primary sm" onClick={() => setModal('upload')}><Icon name="upload" size={14} />Upload the PDF</button> : <span className="muted">The owner has not uploaded it yet.</span>}</div>
           )}
         </div>
         <aside className="review-side">
-          <div className="tabs side-tabs">
-            {([['threads', `Threads ${review.open_threads ? `(${review.open_threads})` : ''}`], ['tasks', `Tasks ${review.open_tasks ? `(${review.open_tasks})` : ''}`], ['people', 'People'], ['log', 'Log']] as [Tab, string][]).map(([t, l]) => (
-              <button key={t} type="button" className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{l}</button>
+          <div className="tabs side-tabs" role="tablist">
+            {([['threads', 'Threads', review.open_threads], ['tasks', 'Tasks', review.open_tasks], ['people', 'People', 0], ['log', 'Log', 0]] as [Tab, string, number][]).map(([t, l, n]) => (
+              <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)} title={l}>{l}{n > 0 && <span className="badge">{n}</span>}</button>
             ))}
           </div>
           <div className="side-body">
             {tab === 'threads' && <>
               {pending && <Composer rid={rid} revisionId={revId} pending={pending} onCancel={() => setPending(null)}
                 onSaved={c => { setPending(null); loadThreads(); loadReview(); setSelected(c.id) }} />}
-              {!pending && canComment && <p className="muted small hint">Select text in the document and press <b>Comment</b>, or switch to <b>▭ Comment area</b> and drag a box. {!isCurrent && 'You are on an older revision; new comments go on it.'}</p>}
+              {!pending && canComment && <p className="muted small hint"><Icon name="info" size={14} /><span>Select text in the document and press <b>Comment</b>, or switch to <b>Comment area</b> and drag a box. {!isCurrent && 'You are on an older revision; new comments go on it.'}</span></p>}
               <Threads review={review} threads={shown} carried={carried} page={page} selected={selected} onSelect={select}
                 reload={() => { loadThreads(); loadReview() }} onTask={c => setTaskFrom(c)} locked={locked} tasks={tasks} onOpenTasks={() => setTab('tasks')} />
             </>}
@@ -184,30 +188,27 @@ function Actions({ review, me, decider, onStatus, openModal }: { review: Review;
   const locked = ['approved', 'rejected', 'cancelled'].includes(s)
   const out: React.ReactNode[] = []
   if (role === 'owner') {
-    if (s === 'draft') out.push(<button key="start" className="btn primary" disabled={!review.current_revision_id} onClick={() => onStatus('start')} title="Open the review to everyone on it">Start review</button>)
+    if (s === 'draft') out.push(<button type="button" key="start" className="btn primary" disabled={!review.current_revision_id} onClick={() => onStatus('start')} title="Open the review to everyone on it">Start review</button>)
     if (s === 'changes_requested') {
-      out.push(<button key="up" className="btn primary" onClick={() => openModal('upload')}>Upload v{review.revisions.length + 1}</button>)
-      out.push(<button key="resume" className="btn" onClick={() => onStatus('resume')} title="Back in review without a new revision">Resume</button>)
+      out.push(<button type="button" key="up" className="btn primary" onClick={() => openModal('upload')}><Icon name="upload" size={15} />Upload v{review.revisions.length + 1}</button>)
+      out.push(<button type="button" key="resume" className="btn" onClick={() => onStatus('resume')} title="Back in review without a new revision">Resume</button>)
     }
-    if (s === 'in_review' && decider) out.push(<button key="done" className="btn primary" onClick={() => openModal('verdict')}>Complete…</button>)
-    if (locked) out.push(<button key="reopen" className="btn" onClick={() => onStatus('reopen')}>Reopen</button>)
+    if (s === 'in_review' && decider) out.push(<button type="button" key="done" className="btn primary" onClick={() => openModal('verdict')}>Complete…</button>)
+    if (locked) out.push(<button type="button" key="reopen" className="btn" onClick={() => onStatus('reopen')}>Reopen</button>)
   }
   if (s === 'in_review' && role === 'approver' && me) {
-    out.push(<button key="decide" className={`btn ${me.verdict ? '' : 'primary'}`} onClick={() => openModal('verdict')}>{me.verdict ? `${VERDICT_LABEL[me.verdict as Exclude<Verdict, ''>]} · change` : 'Decide…'}</button>)
+    out.push(<button type="button" key="decide" className={`btn ${me.verdict ? '' : 'primary'}`} onClick={() => openModal('verdict')}>{me.verdict ? `${VERDICT_LABEL[me.verdict as Exclude<Verdict, ''>]} · change` : 'Decide…'}</button>)
   }
   if (s === 'in_review' && role === 'reviewer' && me) {
-    out.push(<button key="finish" className={`btn ${me.state === 'done' ? '' : 'primary'}`} onClick={() => openModal('verdict')}>{me.state === 'done' && me.verdict ? `${REVIEWER_VERDICT_LABEL[me.verdict as Exclude<Verdict, ''>]} · change` : 'Finish review…'}</button>)
+    out.push(<button type="button" key="finish" className={`btn ${me.state === 'done' ? '' : 'primary'}`} onClick={() => openModal('verdict')}>{me.state === 'done' && me.verdict ? `${REVIEWER_VERDICT_LABEL[me.verdict as Exclude<Verdict, ''>]} · change` : 'Finish review…'}</button>)
   }
   if (role === 'owner') {
     out.push(
-      <details key="more" className="menu">
-        <summary className="btn" aria-label="More">⋯</summary>
-        <div className="menu-pop">
-          {!locked && <button className="menu-item" onClick={() => openModal('upload')}>Upload new revision</button>}
-          <button className="menu-item" onClick={() => openModal('edit')}>Edit details…</button>
-          {!locked && <button className="menu-item danger-text" onClick={() => openModal('cancel')}>Cancel review</button>}
-        </div>
-      </details>,
+      <MenuButton key="more" label="More" className="btn icon-only" align="right" width={210} items={[
+        ...(!locked ? [{ label: 'Upload new revision', icon: 'upload', onSelect: () => openModal('upload') }] : []),
+        { label: 'Edit details…', icon: 'edit', onSelect: () => openModal('edit') },
+        ...(!locked ? ['sep' as const, { label: 'Cancel review', icon: 'x-circle', danger: true, onSelect: () => openModal('cancel') }] : []),
+      ]}><Icon name="more" size={16} /></MenuButton>,
     )
   }
   return <>{out}</>
@@ -233,13 +234,13 @@ function Composer({ rid, revisionId, pending, onCancel, onSaved }: { rid: number
   }
   return (
     <div className="composer card">
-      <div className="row muted small">New thread on page {pending.page}<span className="spacer" /><button className="btn ghost sm" onClick={onCancel}>✕</button></div>
+      <div className="row muted small"><Icon name="message-plus" size={15} />New thread on page {pending.page}<span className="spacer" /><button type="button" className="btn ghost icon-only xs" onClick={onCancel} aria-label="Cancel"><Icon name="x" size={14} /></button></div>
       {pending.anchor.quote && <blockquote className="quote">{pending.anchor.quote}</blockquote>}
-      <Segmented size="sm" value={kind} onChange={setKind} options={[{ value: 'comment', label: '💬 Comment' }, { value: 'question', label: '? Question' }, { value: 'issue', label: '! Issue' }]} />
+      <Segmented size="sm" value={kind} onChange={setKind} options={[{ value: 'comment', label: <><Icon name="message" size={13} />Comment</> }, { value: 'question', label: <><Icon name="help" size={13} />Question</> }, { value: 'issue', label: <><Icon name="alert" size={13} />Issue</> }]} />
       {kind === 'issue' && <Segmented size="sm" value={severity} onChange={setSeverity} options={[{ value: 'minor', label: 'Minor' }, { value: 'major', label: 'Major' }, { value: 'critical', label: 'Critical' }]} />}
       <textarea ref={ref} rows={3} value={body} onChange={e => setBody(e.target.value)} placeholder={kind === 'issue' ? 'What is wrong, and what should it say?' : kind === 'question' ? 'What would you like to know?' : 'Your comment…'}
         onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') onCancel() }} />
-      <div className="row"><span className="muted small">⌘/Ctrl + Enter</span><span className="spacer" /><button className="btn" onClick={onCancel}>Cancel</button><button className="btn primary" onClick={save} disabled={busy || !body.trim()}>Post</button></div>
+      <div className="row"><span className="muted small"><kbd>⌘</kbd> <kbd>↵</kbd></span><span className="spacer" /><button type="button" className="btn" onClick={onCancel}>Cancel</button><button type="button" className="btn primary" onClick={save} disabled={busy || !body.trim()}>Post</button></div>
     </div>
   )
 }
@@ -309,19 +310,19 @@ function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked
             <b>{t.author_name}</b>
             {t.kind === 'issue' && <SeverityBadge severity={t.severity} />}
             {t.kind === 'question' && <span className="badge">Question</span>}
-            {t.status !== 'open' && <span className={`badge st-${t.status}`}>{t.status === 'resolved' ? '✓ Resolved' : '✕ Rejected'}</span>}
+            {t.status !== 'open' && <span className={`badge st-${t.status}`}><Icon name={t.status === 'resolved' ? 'check' : 'x'} size={11} strokeWidth={2.4} />{t.status === 'resolved' ? 'Resolved' : 'Rejected'}</span>}
             {carried && <span className="badge warn" title="Opened on an earlier revision and still open">from v{revNum}</span>}
           </span>
           <span className="muted small">#{t.id} · <button type="button" className="linklike" onClick={e => { e.stopPropagation(); onSelect() }}>page {t.page || '—'}</button> · {ago(t.created_at)}{t.edited_at && ' · edited'}</span>
         </span>
-        {(t.replies?.length ?? 0) > 0 && !open && <span className="badge">↩ {t.replies!.length}</span>}
+        {(t.replies?.length ?? 0) > 0 && !open && <span className="badge" title="Replies"><Icon name="reply" size={11} />{t.replies!.length}</span>}
       </div>
       {t.anchor?.quote && <blockquote className="quote">{t.anchor.quote}</blockquote>}
       {tasks.length > 0 && (
         <div className="thread-tasks">
           {tasks.map(k => (
             <button key={k.id} type="button" className={`task-chip ${k.status}`} onClick={onOpenTasks} title="Open in Tasks">
-              <span>{k.status === 'done' ? '☑' : '☐'}</span><span className="grow">{k.title}</span><span className="muted">{k.assignee_id ? `→ ${k.assignee_name}` : 'unassigned'}</span>
+              <Icon name={k.status === 'done' ? 'check-square' : 'square'} size={14} /><span className="grow">{k.title}</span><span className="muted">{k.assignee_id ? `→ ${k.assignee_name}` : 'unassigned'}</span>
             </button>
           ))}
         </div>
@@ -334,7 +335,7 @@ function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked
             <Avatar id={r.author_id} name={r.author_name} size="sm" />
             <div className="grow">
               <div className="small"><b>{r.author_name}</b> <span className="muted">{ago(r.created_at)}{r.edited_at && ' · edited'}</span>
-                {r.author_id === user?.id && !locked && !r.deleted && <span className="reply-tools"><button className="linklike" onClick={() => setEditing(r)}>edit</button> <button className="linklike danger-text" onClick={() => run(() => api.del(`${V1}/reviews/${review.id}/comments/${r.id}`), 'Deleted')}>delete</button></span>}</div>
+                {r.author_id === user?.id && !locked && !r.deleted && <span className="reply-tools"><button type="button" className="linklike" onClick={() => setEditing(r)}>edit</button> <button type="button" className="linklike danger-text" onClick={() => run(() => api.del(`${V1}/reviews/${review.id}/comments/${r.id}`), 'Deleted')}>delete</button></span>}</div>
               {editing?.id === r.id ? <EditBox review={review} c={r} onDone={() => { setEditing(null); reload() }} /> : <div className="body">{r.deleted ? <i className="muted">deleted</i> : r.body}</div>}
             </div>
           </div>
@@ -343,23 +344,23 @@ function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked
         {canReply && t.status === 'open' && (
           <div className="reply-box">
             <textarea rows={2} value={reply} onChange={e => setReply(e.target.value)} placeholder="Reply…" onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send() }} />
-            <button className="btn primary sm" onClick={send} disabled={busy || !reply.trim()}>Reply</button>
+            <button type="button" className="btn primary sm" onClick={send} disabled={busy || !reply.trim()}>Reply</button>
           </div>
         )}
         {closing && (
           <div className="close-box">
             <textarea rows={2} value={note} onChange={e => setNote(e.target.value)} autoFocus placeholder={closing === 'rejected' ? 'Why is this not going to change? (required)' : 'What was done? (optional)'} />
-            <div className="row"><span className="spacer" /><button className="btn sm" onClick={() => setClosing(null)}>Cancel</button>
-              <button className={`btn sm ${closing === 'rejected' ? 'danger' : 'primary'}`} disabled={busy || (closing === 'rejected' && !note.trim())} onClick={() => setStatus(closing)}>{closing === 'rejected' ? 'Reject' : 'Resolve'}</button></div>
+            <div className="row"><span className="spacer" /><button type="button" className="btn sm" onClick={() => setClosing(null)}>Cancel</button>
+              <button type="button" className={`btn sm ${closing === 'rejected' ? 'danger' : 'primary'}`} disabled={busy || (closing === 'rejected' && !note.trim())} onClick={() => setStatus(closing)}>{closing === 'rejected' ? 'Reject' : 'Resolve'}</button></div>
           </div>
         )}
         {!closing && (
           <div className="thread-actions">
-            {canClose && t.status === 'open' && <><button className="btn sm" onClick={() => setClosing('resolved')}>✓ Resolve</button><button className="btn sm" onClick={() => setClosing('rejected')}>✕ Reject</button></>}
-            {canClose && t.status !== 'open' && <button className="btn sm" onClick={() => setStatus('open')}>Reopen</button>}
-            {canReply && <button className="btn ghost sm" onClick={onTask}>☐ Make task</button>}
+            {canClose && t.status === 'open' && <><button type="button" className="btn sm" onClick={() => setClosing('resolved')}><Icon name="check" size={14} />Resolve</button><button type="button" className="btn sm" onClick={() => setClosing('rejected')}><Icon name="x" size={14} />Reject</button></>}
+            {canClose && t.status !== 'open' && <button type="button" className="btn sm" onClick={() => setStatus('open')}><Icon name="undo" size={14} />Reopen</button>}
+            {canReply && <button type="button" className="btn ghost sm" onClick={onTask}><Icon name="check-square" size={14} />Make task</button>}
             <span className="spacer" />
-            {mine && !locked && !t.deleted && <><button className="btn ghost sm" onClick={() => setEditing(t)}>Edit</button><button className="btn ghost sm danger-text" onClick={() => run(() => api.del(`${V1}/reviews/${review.id}/comments/${t.id}`), 'Deleted')}>Delete</button></>}
+            {mine && !locked && !t.deleted && <><button type="button" className="btn ghost sm" onClick={() => setEditing(t)}>Edit</button><button type="button" className="btn ghost sm danger-text" onClick={() => run(() => api.del(`${V1}/reviews/${review.id}/comments/${t.id}`), 'Deleted')}>Delete</button></>}
           </div>
         )}
       </>}
@@ -381,7 +382,7 @@ function EditBox({ review, c, onDone }: { review: Review; c: Comment; onDone: ()
       {root && <Segmented size="sm" value={kind} onChange={setKind} options={[{ value: 'comment', label: 'Comment' }, { value: 'question', label: 'Question' }, { value: 'issue', label: 'Issue' }]} />}
       {root && kind === 'issue' && <Segmented size="sm" value={severity} onChange={setSeverity} options={[{ value: 'minor', label: 'Minor' }, { value: 'major', label: 'Major' }, { value: 'critical', label: 'Critical' }]} />}
       <textarea rows={3} value={body} onChange={e => setBody(e.target.value)} autoFocus />
-      <div className="row"><span className="spacer" /><button className="btn sm" onClick={onDone}>Cancel</button><button className="btn primary sm" onClick={save} disabled={!body.trim()}>Save</button></div>
+      <div className="row"><span className="spacer" /><button type="button" className="btn sm" onClick={onDone}>Cancel</button><button type="button" className="btn primary sm" onClick={save} disabled={!body.trim()}>Save</button></div>
     </div>
   )
 }
@@ -398,8 +399,8 @@ function Tasks({ review, tasks, threads, locked, onNew, reload, onOpenThread }: 
   const del = async (t: Task) => { try { await api.del(`${V1}/reviews/${review.id}/tasks/${t.id}`); reload() } catch (e) { toast((e as Error).message, 'err') } }
   return (
     <>
-      {!locked && review.my_role !== 'observer' && <button className="btn sm mb-sm" onClick={onNew}>+ Add task</button>}
-      {tasks.length === 0 && <p className="muted small">No tasks. Turn a thread into one with <b>☐ Make task</b>, or add one here.</p>}
+      {!locked && review.my_role !== 'observer' && <button type="button" className="btn sm mb-sm" onClick={onNew}><Icon name="plus" size={14} />Add task</button>}
+      {tasks.length === 0 && <p className="muted small">No tasks. Turn a thread into one with <b>Make task</b>, or add one here.</p>}
       <ul className="task-list">
         {tasks.map(t => {
           const can = !locked && (canModerate || t.created_by === user?.id || t.assignee_id === user?.id)
@@ -413,12 +414,12 @@ function Tasks({ review, tasks, threads, locked, onNew, reload, onOpenThread }: 
                 <div className="muted small">
                   {t.assignee_id ? <>→ {t.assignee_name}</> : 'unassigned'}
                   {t.due_date && <> · <span className={overdue ? 'bad' : ''}>due {fmtDate(t.due_date)}</span></>}
-                  {th && <> · <button className="linklike" onClick={() => onOpenThread(th)}>from #{th.id}</button></>}
+                  {th && <> · <button type="button" className="linklike" onClick={() => onOpenThread(th)}>from #{th.id}</button></>}
                   {t.status === 'done' && t.done_at && <> · done {ago(t.done_at)}</>}
                 </div>
                 {t.notes && <div className="small">{t.notes}</div>}
               </div>
-              {can && (canModerate || t.created_by === user?.id) && <button className="btn ghost sm danger-text" onClick={() => del(t)} title="Delete">✕</button>}
+              {can && (canModerate || t.created_by === user?.id) && <button type="button" className="btn ghost icon-only xs danger-text" onClick={() => del(t)} title="Delete" aria-label="Delete task"><Icon name="trash" size={14} /></button>}
             </li>
           )
         })}
@@ -447,7 +448,7 @@ function TaskModal({ review, from, onClose, onDone }: { review: Review; from: Co
           <Field label="Due"><input type="date" value={f.due_date} onChange={e => setF({ ...f, due_date: e.target.value })} /></Field>
         </div>
         <Field label="Notes" help="Optional"><textarea rows={2} value={f.notes} onChange={e => setF({ ...f, notes: e.target.value })} /></Field>
-        <div className="form-actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy}>Add task</button></div>
+        <div className="form-actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="submit" className="btn primary" disabled={busy}>Add task</button></div>
       </form>
     </Modal>
   )
@@ -487,14 +488,14 @@ function People({ review, live, reload }: { review: Review; live: { user_id: num
                   run(() => api.put(`${V1}/reviews/${review.id}/participants/${p.user_id}`, { role }), 'Role changed')
                 }} />
               ) : <RoleBadge role={p.role} />}
-              {owner && p.role !== 'owner' && <button className="btn ghost sm danger-text" disabled={busy} onClick={() => window.confirm(`Take ${personName(p)} off this review?`) && run(() => api.del(`${V1}/reviews/${review.id}/participants/${p.user_id}`), 'Removed')} title="Remove">✕</button>}
+              {owner && p.role !== 'owner' && <button type="button" className="btn ghost icon-only sm danger-text" disabled={busy} onClick={() => window.confirm(`Take ${personName(p)} off this review?`) && run(() => api.del(`${V1}/reviews/${review.id}/participants/${p.user_id}`), 'Removed')} title="Remove" aria-label={`Remove ${personName(p)}`}><Icon name="x" size={15} /></button>}
             </li>
           )
         })}
       </ul>
       {owner && <div className="mt"><PersonPicker users={users} exclude={review.participants.map(p => p.user_id)} busy={busy}
         onAdd={inv => run(async () => { await api.post(`${V1}/reviews/${review.id}/participants`, inv); if (inv.email) await reloadUsers() }, 'Added')} /></div>}
-      {review.my_role !== 'owner' && <button className="btn ghost sm danger-text mt" onClick={() => window.confirm('Leave this review? You will not see it any more.') && api.del(`${V1}/reviews/${review.id}/participants/${user!.id}`).then(() => navigate('/reviews'))}>Leave this review</button>}
+      {review.my_role !== 'owner' && <button type="button" className="btn ghost sm danger-text mt" onClick={() => window.confirm('Leave this review? You will not see it any more.') && api.del(`${V1}/reviews/${review.id}/participants/${user!.id}`).then(() => navigate('/reviews'))}>Leave this review</button>}
       <p className="muted small mt">{review.require_resolved ? 'Approval needs every issue resolved or rejected.' : 'Approval is allowed with issues still open.'} {review.participants.some(p => p.role === 'approver') ? 'Every approver must approve.' : 'There is no approver: the owner completes the review.'}</p>
     </>
   )
@@ -515,7 +516,7 @@ function Log({ rid, tick, review, onOpenThread }: { rid: number; tick: number; r
         <Select value={kind} onChange={setKind} ariaLabel="Kind" options={KIND_GROUPS.map(([k, l]) => ({ value: k, label: l }))} />
         <Select value={String(who)} onChange={v => setWho(Number(v))} ariaLabel="Who"
           options={[{ value: '0', label: 'Everyone' }, ...review.participants.map(p => ({ value: String(p.user_id), label: personName(p), hint: ROLE_LABEL[p.role] }))]} />
-        <a className="btn ghost sm" href={`${V1}/reviews/${rid}/events.csv`} title="Download the whole log">CSV</a>
+        <a className="btn ghost sm" href={`${V1}/reviews/${rid}/events.csv`} title="Download the whole log"><Icon name="download" size={14} />CSV</a>
       </div>
       {!events ? <Loading /> : events.length === 0 ? <p className="muted small">Nothing yet.</p> : (
         <ol className="log-list">
@@ -524,7 +525,7 @@ function Log({ rid, tick, review, onOpenThread }: { rid: number; tick: number; r
               <Avatar id={e.user_id} name={e.user_name || '?'} size="sm" />
               <div className="grow">
                 <div className="small"><b>{e.user_name || 'Someone'}</b> <span className="muted" title={fmtDateTime(e.created_at)}>{ago(e.created_at)}</span></div>
-                <div className="small">{e.comment_id ? <button className="linklike" onClick={() => onOpenThread(e.comment_id)}>{e.summary}</button> : e.summary}</div>
+                <div className="small">{e.comment_id ? <button type="button" className="linklike" onClick={() => onOpenThread(e.comment_id)}>{e.summary}</button> : e.summary}</div>
               </div>
             </li>
           ))}
@@ -561,10 +562,10 @@ function VerdictModal({ review, me, decider, onClose, onDone }: { review: Review
         {blocked && <div className="callout danger">{plural(review.open_issues, 'issue')} still open. This review only approves once every issue is resolved or rejected.</div>}
         <Field label="Note" help={decider ? 'Shown in the log and the report.' : 'Optional — what the owner should know.'}><textarea rows={3} value={note} onChange={e => setNote(e.target.value)} /></Field>
         <div className="form-actions">
-          {me.verdict && <button className="btn ghost" onClick={() => save('')} disabled={busy}>Withdraw</button>}
+          {me.verdict && <button type="button" className="btn ghost" onClick={() => save('')} disabled={busy}>Withdraw</button>}
           <span className="spacer" />
-          <button className="btn" onClick={onClose}>Cancel</button>
-          <button className={`btn ${v === 'rejected' ? 'danger' : 'primary'}`} disabled={busy || blocked} onClick={() => save(v)}>{labels[v as Exclude<Verdict, ''>]}</button>
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="button" className={`btn ${v === 'rejected' ? 'danger' : 'primary'}`} disabled={busy || blocked} onClick={() => save(v)}>{labels[v as Exclude<Verdict, ''>]}</button>
         </div>
         {decider && <p className="muted small">{v === 'approved' ? (review.participants.filter(p => p.role === 'approver').length > 1 ? 'The review is approved once every approver approves.' : 'The review becomes approved.') : v === 'changes' ? 'The owner uploads a new revision; everyone looks again.' : 'The review ends as rejected.'}</p>}
       </div>
@@ -599,7 +600,7 @@ function UploadModal({ review, onClose, onDone }: { review: Review; onClose: () 
         {next > 1 && <Field label="What changed?" help="Shown in the log."><input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Net 45, new liability cap" /></Field>}
         {next > 1 && <p className="muted small">Open threads carry over to the new revision. Everyone's verdict is cleared so they look again{review.status === 'changes_requested' ? ', and the review goes back in review' : ''}.</p>}
         {busy && <div className="bar lg"><span className="fill" style={{ width: `${Math.round(progress * 100)}%` }} /></div>}
-        <div className="form-actions"><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!file || busy} onClick={save}>{busy ? `Uploading… ${Math.round(progress * 100)}%` : `Upload v${next}`}</button></div>
+        <div className="form-actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="button" className="btn primary" disabled={!file || busy} onClick={save}>{busy ? `Uploading… ${Math.round(progress * 100)}%` : `Upload v${next}`}</button></div>
       </div>
     </Modal>
   )
@@ -616,7 +617,7 @@ function EditModal({ review, onClose, onDone, onDelete }: { review: Review; onCl
         <Field label="Description"><textarea rows={3} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} /></Field>
         <Field label="Due date"><input type="date" value={f.due_date} onChange={e => setF({ ...f, due_date: e.target.value })} /></Field>
         <label className="row small"><input type="checkbox" checked={f.require_resolved} onChange={e => setF({ ...f, require_resolved: e.target.checked })} style={{ width: 'auto' }} /> Approve only when every issue is resolved or rejected</label>
-        <div className="form-actions"><button type="button" className="btn ghost danger-text" onClick={onDelete}>Delete review…</button><span className="spacer" /><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary">Save</button></div>
+        <div className="form-actions"><button type="button" className="btn ghost danger-text" onClick={onDelete}>Delete review…</button><span className="spacer" /><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="submit" className="btn primary">Save</button></div>
       </form>
     </Modal>
   )
