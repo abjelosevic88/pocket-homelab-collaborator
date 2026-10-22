@@ -170,6 +170,7 @@ func (s *Server) Router() http.Handler {
 	r.Use(s.logging)
 	r.Use(middleware.Recoverer)
 
+	r.Get("/pocket-ask.js", s.core.AskWidget("collaborator"))
 	r.Get("/healthz", s.handleHealth)
 	r.Get("/readyz", s.handleReady)
 	r.Get("/api/health", s.handleHealth)
