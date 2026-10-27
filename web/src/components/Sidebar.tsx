@@ -25,7 +25,7 @@ export function Sidebar({ reviews, dash, onNavigate, onNew }: { reviews: Review[
       <div className="sb-brand">
         <img src="/favicon.svg" alt="" className="sb-logo" />
         <span className="sb-title">{title !== 'Pocket Collaborator' ? title : <>Pocket <b>Collaborator</b></>}</span>
-        {status?.version && <span className="sb-version" title={`Version ${status.version}`}>{/^\d/.test(status.version) ? 'v' + status.version : status.version}</span>}
+        {status?.version && <span className="sb-version" title={`Version ${status.version}`}>{/^v?\d+\.\d+/.test(status.version) ? 'v' + status.version.replace(/^v/, '').replace(/[-+].*$/, '') : status.version}</span>}
       </div>
       <button type="button" className="btn primary create-btn" onClick={onNew} title="New review (n)">
         <Icon name="plus" size={17} strokeWidth={2.2} />New review<kbd className="kbd-on-primary">N</kbd>
