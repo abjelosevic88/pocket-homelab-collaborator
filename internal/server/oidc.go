@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 // Sign-in with an OpenID Connect provider (Pocket Core on a box, or any
@@ -405,7 +405,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := s.identityUser(ctx, claims.Iss, claims.Sub, email, claims.Name, s.oidcAutoCreate())
 	if err != nil {
-		fail("No Pocket Collaborator account for "+email+" or identity could not be linked", err)
+		fail("No Pocket Review account for "+email+" or identity could not be linked", err)
 		return
 	}
 	id, err := s.store.CreateSession(ctx, u.ID, s.cfg.SessionTTL)

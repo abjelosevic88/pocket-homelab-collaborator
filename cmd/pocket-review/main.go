@@ -1,4 +1,4 @@
-// Command pocket-collaborator is a self-hosted document review tool: people
+// Command pocket-review is a self-hosted document review tool: people
 // comment on a PDF together, raise and resolve issues, hand out tasks and sign
 // off, while the app logs everything and measures who spent how long on which
 // page. One binary, one SQLite file plus the documents, one volume.
@@ -20,10 +20,10 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/config"
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/server"
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
-	"github.com/abjelosevic88/pocket-homelab-collaborator/web"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/config"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/server"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/web"
 )
 
 var version = "dev"
@@ -32,7 +32,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
-			fmt.Println("pocket-collaborator", version)
+			fmt.Println("pocket-review", version)
 			return
 		case "backup":
 			runBackup(os.Args[2:])
@@ -41,14 +41,14 @@ func main() {
 			runResetPassword(os.Args[2:])
 			return
 		case "help", "--help", "-h":
-			fmt.Println(`pocket-collaborator — review documents together
+			fmt.Println(`pocket-review — review documents together
 
 Usage:
-  pocket-collaborator                     start the server (default)
-  pocket-collaborator backup [-o FILE]    write a consistent SQLite backup
-  pocket-collaborator reset-password [-email USER] [-password NEW]
+  pocket-review                     start the server (default)
+  pocket-review backup [-o FILE]    write a consistent SQLite backup
+  pocket-review reset-password [-email USER] [-password NEW]
                                    set a user's password (default: first user, random password printed)
-  pocket-collaborator version             print version
+  pocket-review version             print version
 
 Configuration is read from environment variables, see docs/configuration.md.`)
 			return
@@ -123,7 +123,7 @@ func serve() {
 		IdleTimeout:       120 * time.Second,
 	}
 	go func() {
-		log.Info("pocket-collaborator started", "version", version, "addr", cfg.Addr(), "base_url", cfg.BaseURL, "db", cfg.DBPath, "auth_mode", cfg.AuthMode, "files", cfg.FilesDir)
+		log.Info("pocket-review started", "version", version, "addr", cfg.Addr(), "base_url", cfg.BaseURL, "db", cfg.DBPath, "auth_mode", cfg.AuthMode, "files", cfg.FilesDir)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("http server", "err", err)
 			os.Exit(1)
@@ -138,14 +138,14 @@ func serve() {
 
 func runBackup(args []string) {
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
-	out := fs.String("o", "", "output file (default: DATA_DIR/backups/pocket-collaborator-<timestamp>.db)")
+	out := fs.String("o", "", "output file (default: DATA_DIR/backups/pocket-review-<timestamp>.db)")
 	_ = fs.Parse(args)
 	cfg, log, st := mustLoad()
 	defer st.Close()
 	dst := *out
 	if dst == "" {
 		_ = os.MkdirAll(cfg.DataDir+"/backups", 0o755)
-		dst = fmt.Sprintf("%s/backups/pocket-collaborator-%s.db", cfg.DataDir, time.Now().Format("20060102-150405"))
+		dst = fmt.Sprintf("%s/backups/pocket-review-%s.db", cfg.DataDir, time.Now().Format("20060102-150405"))
 	}
 	if err := st.Backup(context.Background(), dst); err != nil {
 		log.Error("backup failed", "err", err)

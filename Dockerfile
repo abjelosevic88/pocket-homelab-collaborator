@@ -19,21 +19,21 @@ COPY . .
 COPY --from=web /src/web/dist ./web/dist
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/pocket-collaborator ./cmd/pocket-collaborator
+    go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/pocket-review ./cmd/pocket-review
 
 # ---------- 3. runtime ----------
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata curl \
  && addgroup -g 1000 app && adduser -u 1000 -G app -D -h /data app
-COPY --from=build /out/pocket-collaborator /usr/local/bin/pocket-collaborator
+COPY --from=build /out/pocket-review /usr/local/bin/pocket-review
 ENV DATA_DIR=/data PORT=8080 HOST=0.0.0.0
 VOLUME ["/data"]
 EXPOSE 8080
 USER app
 WORKDIR /data
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD curl -fsS http://localhost:8080/healthz || exit 1
-LABEL org.opencontainers.image.title="Pocket Collaborator" \
+LABEL org.opencontainers.image.title="Pocket Review" \
       org.opencontainers.image.description="Self-hosted document review: comments pinned to the page, issues, tasks, sign-off, live presence and a report of who spent how long on what." \
-      org.opencontainers.image.source="https://github.com/abjelosevic88/pocket-homelab-collaborator" \
+      org.opencontainers.image.source="https://github.com/abjelosevic88/pocket-homelab-review" \
       org.opencontainers.image.licenses="MIT"
-ENTRYPOINT ["pocket-collaborator"]
+ENTRYPOINT ["pocket-review"]

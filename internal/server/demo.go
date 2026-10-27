@@ -14,7 +14,7 @@ import (
 
 	"github.com/go-pdf/fpdf"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 // seedDemo fills an empty database with a contract under review, a draft and

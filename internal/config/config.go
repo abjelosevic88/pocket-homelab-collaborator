@@ -100,7 +100,7 @@ func Load() (*Config, error) {
 		Port:           envInt("PORT", 8080),
 		BaseURL:        strings.TrimRight(env("BASE_URL", ""), "/"),
 		DataDir:        dataDir,
-		DBPath:         env("DB_PATH", dataDir+"/pocket-collaborator.db"),
+		DBPath:         env("DB_PATH", dataDir+"/pocket-review.db"),
 		LogLevel:       strings.ToLower(env("LOG_LEVEL", "info")),
 		LogFormat:      strings.ToLower(env("LOG_FORMAT", "text")),
 		TrustProxy:     envBool("TRUST_PROXY", true),

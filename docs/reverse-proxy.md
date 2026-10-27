@@ -6,7 +6,7 @@ The app needs plain HTTP plus a WebSocket at `/api/v1/reviews/{id}/live`. Set `B
 
 ```caddy
 review.example.com {
-	reverse_proxy pocket-collaborator:8080
+	reverse_proxy pocket-review:8080
 }
 ```
 
@@ -14,7 +14,7 @@ review.example.com {
 
 ```nginx
 location / {
-    proxy_pass http://pocket-collaborator:8080;
+    proxy_pass http://pocket-review:8080;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";

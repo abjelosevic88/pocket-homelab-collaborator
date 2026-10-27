@@ -1,5 +1,5 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-IMAGE   ?= ghcr.io/abjelosevic88/pocket-homelab-collaborator
+IMAGE   ?= ghcr.io/abjelosevic88/pocket-homelab-review
 LDFLAGS  = -s -w -X main.version=$(VERSION)
 
 .PHONY: all web build run dev test lint docker docker-multiarch backup clean help
@@ -10,14 +10,14 @@ web:                       ## build the React UI into web/dist
 	cd web && npm ci --no-audit --no-fund && npm run build
 
 build:                     ## build the Go binary (embeds web/dist)
-	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o pocket-collaborator ./cmd/pocket-collaborator
+	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o pocket-review ./cmd/pocket-review
 
 run: build                 ## run locally with demo data and no login
-	DATA_DIR=./data DEMO_DATA=true AUTH_MODE=none LOG_LEVEL=debug ./pocket-collaborator
+	DATA_DIR=./data DEMO_DATA=true AUTH_MODE=none LOG_LEVEL=debug ./pocket-review
 
 dev:                       ## backend on :8080 + vite dev server on :5173 with hot reload
 	@echo "Starting API on :8080 and Vite on :5173 (open http://localhost:5173)"
-	@(DATA_DIR=./data DEMO_DATA=true AUTH_MODE=none LOG_LEVEL=debug go run ./cmd/pocket-collaborator &) && cd web && npm run dev
+	@(DATA_DIR=./data DEMO_DATA=true AUTH_MODE=none LOG_LEVEL=debug go run ./cmd/pocket-review &) && cd web && npm run dev
 
 test:                      ## run Go tests and type-check the UI
 	go vet ./... && go test ./...
@@ -33,10 +33,10 @@ docker-multiarch:          ## build & push amd64 + arm64 + armv7 (needs buildx)
 	docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 --build-arg VERSION=$(VERSION) -t $(IMAGE):$(VERSION) -t $(IMAGE):latest --push .
 
 backup:                    ## snapshot the local database
-	./pocket-collaborator backup
+	./pocket-review backup
 
 clean:
-	rm -rf pocket-collaborator web/dist web/node_modules dist
+	rm -rf pocket-review web/dist web/node_modules dist
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'

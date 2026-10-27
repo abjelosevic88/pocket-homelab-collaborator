@@ -3,7 +3,7 @@ package store
 import "context"
 
 // DefaultTitle is the app title until someone changes it.
-const DefaultTitle = "Pocket Collaborator"
+const DefaultTitle = "Pocket Review"
 
 // GetSettings loads all settings with defaults applied.
 func (s *Store) GetSettings(ctx context.Context) (Settings, error) {

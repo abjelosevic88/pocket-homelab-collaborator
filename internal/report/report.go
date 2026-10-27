@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 // SeenSeconds is how long a page must have been in front of someone to count

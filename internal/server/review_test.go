@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/config"
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/config"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 // harness: Adam is the box admin and on no review; Olga owns; Ben approves;

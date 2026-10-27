@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/report"
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/report"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 func (s *Server) handleReviewEvents(w http.ResponseWriter, r *http.Request) {

@@ -29,7 +29,7 @@ export default function Login({ mode }: { mode: 'login' | 'setup' }) {
   }
   const sso = mode === 'login' && !!status?.oidc
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [k]: e.target.value }))
-  const title = status?.title || 'Pocket Collaborator'
+  const title = status?.title || 'Pocket Review'
 
   return (
     <div className="login-wrap">
@@ -56,7 +56,7 @@ export default function Login({ mode }: { mode: 'login' | 'setup' }) {
         </form>
         {mode === 'setup' && <p className="login-note">You become the admin. Everyone sees only the reviews they are on — admins included.</p>}
       </div>
-      {status?.version && <p className="login-version">Pocket Collaborator v{status.version.replace(/^v/, '')}</p>}
+      {status?.version && <p className="login-version">Pocket Review v{status.version.replace(/^v/, '')}</p>}
     </div>
   )
 }

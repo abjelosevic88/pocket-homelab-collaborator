@@ -19,8 +19,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/config"
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/config"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
 )
 
@@ -49,7 +49,7 @@ type Server struct {
 
 // New creates a server.
 func New(cfg *config.Config, st *store.Store, log *slog.Logger, webFS fs.FS) *Server {
-	ua := "PocketCollaborator/" + Version + " (+https://github.com/abjelosevic88/pocket-homelab-collaborator)"
+	ua := "PocketReview/" + Version + " (+https://github.com/abjelosevic88/pocket-homelab-review)"
 	s := &Server{cfg: cfg, store: st, log: log, webFS: webFS, started: time.Now(),
 		oidc: &oidcProvider{issuerURL: cfg.OIDCIssuer},
 		core: core.New(cfg.CoreURL, core.Options{DB: st.DB, TokenFile: cfg.DataDir + "/core.token", UserAgent: ua})}
@@ -128,11 +128,11 @@ func (s *Server) coreLoop(ctx context.Context) {
 
 func (s *Server) registerWithCore(ctx context.Context) error {
 	m := core.Manifest{
-		Slug: "collaborator", Name: "Pocket Collaborator",
+		Slug: "review", Name: "Pocket Review",
 		Description: "Review documents together: comments pinned to the page, issues that get resolved or rejected, tasks, sign-off, live presence and a full report of who spent how long on what.",
 		Icon:        "/favicon.svg", Version: Version,
-		URL: s.cfg.CoreAppURL, PublicURL: s.cfg.BaseURL, HealthPath: "/healthz", EnvPrefix: "COLLABORATOR",
-		Publishes: []string{"collaborator.review_started", "collaborator.comment_added", "collaborator.review_decided"},
+		URL: s.cfg.CoreAppURL, PublicURL: s.cfg.BaseURL, HealthPath: "/healthz", EnvPrefix: "REVIEW",
+		Publishes: []string{"review.review_started", "review.comment_added", "review.review_decided"},
 		Offers:    linkOffers,
 	}
 	// Ask Core for a relying-party client so "Sign in with Pocket Core" needs no configuration.
@@ -170,7 +170,7 @@ func (s *Server) Router() http.Handler {
 	r.Use(s.logging)
 	r.Use(middleware.Recoverer)
 
-	r.Get("/pocket-ask.js", s.core.AskWidget("collaborator"))
+	r.Get("/pocket-ask.js", s.core.AskWidget("review"))
 	r.Get("/healthz", s.handleHealth)
 	r.Get("/readyz", s.handleReady)
 	r.Get("/api/health", s.handleHealth)
@@ -360,14 +360,14 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	counts := s.store.Counts(ctx)
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-	fmt.Fprintf(w, "# HELP pocket_collaborator_info Build info.\n# TYPE pocket_collaborator_info gauge\npocket_collaborator_info{version=%q} 1\n", Version)
-	fmt.Fprintf(w, "# HELP pocket_collaborator_uptime_seconds Process uptime.\n# TYPE pocket_collaborator_uptime_seconds gauge\npocket_collaborator_uptime_seconds %d\n", int(time.Since(s.started).Seconds()))
-	fmt.Fprintf(w, "# HELP pocket_collaborator_http_requests_total HTTP requests served.\n# TYPE pocket_collaborator_http_requests_total counter\npocket_collaborator_http_requests_total %d\n", s.requests.Load())
-	fmt.Fprintf(w, "# HELP pocket_collaborator_http_errors_total HTTP 5xx responses.\n# TYPE pocket_collaborator_http_errors_total counter\npocket_collaborator_http_errors_total %d\n", s.errors.Load())
-	fmt.Fprintf(w, "# HELP pocket_collaborator_live_connections Open live connections.\n# TYPE pocket_collaborator_live_connections gauge\npocket_collaborator_live_connections %d\n", s.hub.connCount())
-	fmt.Fprintf(w, "# HELP pocket_collaborator_rows Rows per table.\n# TYPE pocket_collaborator_rows gauge\n")
+	fmt.Fprintf(w, "# HELP pocket_review_info Build info.\n# TYPE pocket_review_info gauge\npocket_review_info{version=%q} 1\n", Version)
+	fmt.Fprintf(w, "# HELP pocket_review_uptime_seconds Process uptime.\n# TYPE pocket_review_uptime_seconds gauge\npocket_review_uptime_seconds %d\n", int(time.Since(s.started).Seconds()))
+	fmt.Fprintf(w, "# HELP pocket_review_http_requests_total HTTP requests served.\n# TYPE pocket_review_http_requests_total counter\npocket_review_http_requests_total %d\n", s.requests.Load())
+	fmt.Fprintf(w, "# HELP pocket_review_http_errors_total HTTP 5xx responses.\n# TYPE pocket_review_http_errors_total counter\npocket_review_http_errors_total %d\n", s.errors.Load())
+	fmt.Fprintf(w, "# HELP pocket_review_live_connections Open live connections.\n# TYPE pocket_review_live_connections gauge\npocket_review_live_connections %d\n", s.hub.connCount())
+	fmt.Fprintf(w, "# HELP pocket_review_rows Rows per table.\n# TYPE pocket_review_rows gauge\n")
 	for k, v := range counts {
-		fmt.Fprintf(w, "pocket_collaborator_rows{table=%q} %d\n", k, v)
+		fmt.Fprintf(w, "pocket_review_rows{table=%q} %d\n", k, v)
 	}
 }
 

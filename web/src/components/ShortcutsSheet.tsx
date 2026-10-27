@@ -20,7 +20,7 @@ export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
           </section>
         ))}
       </div>
-      <p className="muted small mt">In a document, select text and press <b>Comment</b>, or switch to <b>Comment area</b> and drag a box on the page.</p>
+      <p className="muted small mt">In a document, select text and press <b>Comment</b>, or switch to <b>Select area</b> and drag a box on the page.</p>
     </Modal>
   )
 }

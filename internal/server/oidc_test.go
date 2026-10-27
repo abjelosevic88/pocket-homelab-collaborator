@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/config"
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/config"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 // fakeIdP is a tiny OpenID provider: it signs whoever `email` says.
@@ -178,7 +178,7 @@ func TestOIDCSignIn(t *testing.T) {
 		forge       bool
 		next, want  string
 	}{
-		{"unknown email", "stranger@example.com", true, false, "/", "No Pocket Collaborator account"},
+		{"unknown email", "stranger@example.com", true, false, "/", "No Pocket Review account"},
 		{"unverified email", "aleksandar@example.com", false, false, "/", "verified email"},
 		{"forged signature", "aleksandar@example.com", true, true, "/", "did not check out"},
 	} {

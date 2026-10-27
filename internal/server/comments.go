@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +140,7 @@ func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 		c.Anchor = cleanAnchor(in.Anchor)
 	}
 	if err := s.store.CreateComment(ctx, c, func(tx *sql.Tx) error {
-		return s.queueEvent(ctx, tx, "collaborator.comment_added", fmt.Sprint(c.ID), s.eventPayload(ctx, rv, map[string]any{"comment_id": c.ID, "kind": c.Kind, "severity": c.Severity, "page": c.Page, "text": snippet(c.Body, 200)}))
+		return s.queueEvent(ctx, tx, "review.comment_added", fmt.Sprint(c.ID), s.eventPayload(ctx, rv, map[string]any{"comment_id": c.ID, "kind": c.Kind, "severity": c.Severity, "page": c.Page, "text": snippet(c.Body, 200)}))
 	}); err != nil {
 		s.fail(w, err, "create comment")
 		return

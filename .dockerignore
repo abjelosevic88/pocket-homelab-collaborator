@@ -9,5 +9,5 @@ deploy
 .env
 .env.*
 !.env.example
-/pocket-collaborator
+/pocket-review
 dist

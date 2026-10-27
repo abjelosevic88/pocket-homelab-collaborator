@@ -202,7 +202,7 @@ export default function PdfViewer(p: Props) {
         {p.canComment && (
           <div className="segmented sm" role="radiogroup" aria-label="Tool">
             <button type="button" className={p.tool === 'select' ? 'active' : ''} onClick={() => p.setTool('select')} title="Select text, then comment on it"><Icon name="type" size={13} />Select text</button>
-            <button type="button" className={p.tool === 'comment' ? 'active' : ''} onClick={() => p.setTool(p.tool === 'comment' ? 'select' : 'comment')} title="Drag a box (or click a point) on the page to comment on it"><Icon name="box-select" size={13} />Comment area</button>
+            <button type="button" className={p.tool === 'comment' ? 'active' : ''} onClick={() => p.setTool(p.tool === 'comment' ? 'select' : 'comment')} title="Drag a box (or click a point) on the page to comment on it"><Icon name="box-select" size={13} />Select area</button>
           </div>
         )}
         <span className="spacer" />

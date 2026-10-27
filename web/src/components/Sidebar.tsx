@@ -11,7 +11,7 @@ const MAX = 12
 
 export function Sidebar({ reviews, dash, onNavigate, onNew }: { reviews: Review[]; dash: Dashboard | null; onNavigate: () => void; onNew: () => void }) {
   const { status, settings } = useApp()
-  const title = settings?.title || status?.title || 'Pocket Collaborator'
+  const title = settings?.title || status?.title || 'Pocket Review'
   const waiting = (dash?.to_review || 0) + (dash?.to_approve || 0)
   const nav = [
     { to: '/home', label: 'Home', icon: 'home', badge: 0, tip: '' },
@@ -21,10 +21,10 @@ export function Sidebar({ reviews, dash, onNavigate, onNew }: { reviews: Review[
   // live ones first, then the API's order (most recent activity)
   const list = [...reviews].sort((a, b) => Number(!!b.live_now?.length) - Number(!!a.live_now?.length))
   return (
-    <aside className="sidebar" aria-label="Collaborator">
+    <aside className="sidebar" aria-label="Review">
       <div className="sb-brand">
         <img src="/favicon.svg" alt="" className="sb-logo" />
-        <span className="sb-title">{title !== 'Pocket Collaborator' ? title : <>Pocket <b>Collaborator</b></>}</span>
+        <span className="sb-title">{title !== 'Pocket Review' ? title : <>Pocket <b>Review</b></>}</span>
         {status?.version && <span className="sb-version" title={`Version ${status.version}`}>{/^v?\d+\.\d+/.test(status.version) ? 'v' + status.version.replace(/^v/, '').replace(/[-+].*$/, '') : status.version}</span>}
       </div>
       <button type="button" className="btn primary create-btn" onClick={onNew} title="New review (n)">

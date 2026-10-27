@@ -1,6 +1,6 @@
 # Caddy: automatic HTTPS, nothing else needed.
 review.example.com {
-	reverse_proxy pocket-collaborator:8080
+	reverse_proxy pocket-review:8080
 }
 
 # Behind forward-auth (Tinyauth / Authelia / Authentik) with AUTH_MODE=proxy:
@@ -9,5 +9,5 @@ review.example.com {
 # 		uri /api/auth/caddy
 # 		copy_headers Remote-User Remote-Email
 # 	}
-# 	reverse_proxy pocket-collaborator:8080
+# 	reverse_proxy pocket-review:8080
 # }

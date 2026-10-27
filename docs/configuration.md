@@ -9,7 +9,7 @@ Everything is an environment variable with a default; `docker run` with one volu
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | |
 | `BASE_URL` | — | Public URL, e.g. `https://review.example.com`. Needed for single sign-on and links in Pocket Core events. |
 | `DATA_DIR` | `./data` (`/data` in the image) | Database, documents, Core token. |
-| `DB_PATH` | `$DATA_DIR/pocket-collaborator.db` | |
+| `DB_PATH` | `$DATA_DIR/pocket-review.db` | |
 | `FILES_DIR` | `$DATA_DIR/files` | Uploaded documents, `<review id>/<sha256>.pdf`. |
 | `TRUST_PROXY` | `true` | Take the client IP from `X-Forwarded-For`. |
 | `LOG_LEVEL` / `LOG_FORMAT` | `info` / `text` | `debug`…`error`; `text` or `json`. |

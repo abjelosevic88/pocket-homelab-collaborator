@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 // Documents sent from other Pocket apps (Office, Documents) arrive here with
@@ -171,7 +171,7 @@ func (s *Server) handleImportReview(w http.ResponseWriter, r *http.Request) {
 	rv.CurrentRevisionID = rev.ID
 	if v("start") == "1" && rv.Status == store.StatusDraft {
 		if err := s.store.SetReviewStatus(ctx, rv.ID, store.StatusInReview, func(tx *sql.Tx) error {
-			return s.queueEvent(ctx, tx, "collaborator.review_started", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title}))
+			return s.queueEvent(ctx, tx, "review.review_started", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title}))
 		}); err == nil {
 			s.event(ctx, rv, store.Event{Kind: "review.started", Summary: "Started the review", RevisionID: rev.ID}, "review", "people")
 		}

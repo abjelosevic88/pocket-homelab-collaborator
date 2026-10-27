@@ -12,6 +12,7 @@ import { Avatar, LiveStack } from '../components/people'
 import PdfViewer, { KIND_ICON, Tool } from '../components/PdfViewer'
 import { countPages, isPdf, PdfDrop, PersonPicker, RoleBadge, RoleSelect, SeverityBadge, StatusBadge, SourceChip } from '../components/review-bits'
 import { Select } from '../components/Select'
+import { EVERYONE, parsePeopleSel, PeopleFilter, PeopleSel, PersonOption, personShown } from '../components/PeopleFilter'
 
 type Tab = 'threads' | 'tasks' | 'people' | 'log'
 
@@ -36,6 +37,11 @@ export default function ReviewPage() {
   const [showCursors, setShowCursors] = useState(() => localStorage.getItem('pcl-cursors') !== '0')
   const [modal, setModal] = useState<'' | 'verdict' | 'upload' | 'edit' | 'cancel' | 'delete'>('')
   const [taskFrom, setTaskFrom] = useState<Comment | null | undefined>(undefined)
+  const [people, setPeopleState] = useState<PeopleSel>(() => parsePeopleSel(localStorage.getItem(`pcl-people-${rid}`)))
+  const setPeople = (sel: PeopleSel) => {
+    setPeopleState(sel)
+    if (sel.mode === 'all') localStorage.removeItem(`pcl-people-${rid}`); else localStorage.setItem(`pcl-people-${rid}`, JSON.stringify(sel))
+  }
 
   const loadReview = useCallback(() => api.get<Review>(`${V1}/reviews/${rid}`).then(setReview).catch(e => setErr((e as Error).message)), [rid])
   const loadThreads = useCallback(() => api.get<Comment[]>(`${V1}/reviews/${rid}/comments`).then(setThreads).catch(() => {}), [rid])
@@ -74,6 +80,17 @@ export default function ReviewPage() {
     })
     return { shown, carried }
   }, [threads, revId, isCurrent, review, rev])
+  // the people filter: everyone who is on the review or started a thread here, me first
+  const personOptions = useMemo<PersonOption[]>(() => {
+    const m = new Map<number, PersonOption>()
+    for (const p of review?.participants ?? []) m.set(p.user_id, { id: p.user_id, name: personName(p), count: 0 })
+    for (const t of shown) {
+      const o = m.get(t.author_id) ?? { id: t.author_id, name: t.author_name || 'Someone', count: 0 }
+      o.count++; m.set(t.author_id, o)
+    }
+    return [...m.values()].sort((a, b) => Number(b.id === user?.id) - Number(a.id === user?.id) || a.name.localeCompare(b.name))
+  }, [review, shown, user])
+  const visible = useMemo(() => shown.filter(t => personShown(people, t.author_id)), [shown, people])
 
   if (err) return <div className="callout danger"><Icon name="alert" size={15} /><span>{err === 'not found' ? 'This review does not exist, or you are not on it.' : err} <Link to="/reviews">Back to reviews</Link></span></div>
   if (!review) return <Loading />
@@ -87,6 +104,7 @@ export default function ReviewPage() {
 
   const select = (t: Comment) => {
     setSelected(t.id); setTab('threads')
+    if (!personShown(people, t.author_id)) setPeople(EVERYONE)
     const y = t.anchor?.rects?.[0]?.y ?? 0
     setJump({ page: t.page || 1, y, nonce: Date.now(), threadId: t.id })
   }
@@ -131,7 +149,7 @@ export default function ReviewPage() {
       <div className="review-body">
         <div className="review-viewer">
           {rev ? (
-            <PdfViewer url={`${V1}/reviews/${rid}/revisions/${rev.id}/file`} threads={shown} carried={carried} selectedId={selected}
+            <PdfViewer url={`${V1}/reviews/${rid}/revisions/${rev.id}/file`} threads={visible} carried={carried} selectedId={selected}
               onSelect={tid => { const t = threads.find(x => x.id === tid); if (t) { setSelected(tid); setTab('threads') } }}
               tool={tool} setTool={setTool} canComment={canComment} pending={pending}
               onAnchor={(pg, a) => { setPending({ page: pg, anchor: a }); setTab('threads'); setSelected(null); setTool('select') }}
@@ -153,8 +171,8 @@ export default function ReviewPage() {
             {tab === 'threads' && <>
               {pending && <Composer rid={rid} revisionId={revId} pending={pending} onCancel={() => setPending(null)}
                 onSaved={c => { setPending(null); loadThreads(); loadReview(); setSelected(c.id) }} />}
-              {!pending && canComment && <p className="muted small hint"><Icon name="info" size={14} /><span>Select text in the document and press <b>Comment</b>, or switch to <b>Comment area</b> and drag a box. {!isCurrent && 'You are on an older revision; new comments go on it.'}</span></p>}
-              <Threads review={review} threads={shown} carried={carried} page={page} selected={selected} onSelect={select}
+              {!pending && canComment && <p className="muted small hint"><Icon name="info" size={14} /><span>Select text in the document and press <b>Comment</b>, or switch to <b>Select area</b> and drag a box. {!isCurrent && 'You are on an older revision; new comments go on it.'}</span></p>}
+              <Threads review={review} threads={visible} carried={carried} people={people} setPeople={setPeople} personOptions={personOptions} meId={user?.id} hidden={shown.length - visible.length} page={page} selected={selected} onSelect={select}
                 reload={() => { loadThreads(); loadReview() }} onTask={c => setTaskFrom(c)} locked={locked} tasks={tasks} onOpenTasks={() => setTab('tasks')} />
             </>}
             {tab === 'tasks' && <Tasks review={review} tasks={tasks} threads={threads} locked={locked} onNew={() => setTaskFrom(null)} reload={() => { loadTasks(); loadReview() }} onOpenThread={t => select(t)} />}
@@ -247,9 +265,10 @@ function Composer({ rid, revisionId, pending, onCancel, onSaved }: { rid: number
 
 // ---------- threads ----------
 
-function Threads({ review, threads, carried, page, selected, onSelect, reload, onTask, locked, tasks, onOpenTasks }: {
+function Threads({ review, threads, carried, people, setPeople, personOptions, meId, hidden, page, selected, onSelect, reload, onTask, locked, tasks, onOpenTasks }: {
   review: Review; threads: Comment[]; carried: Set<number>; page: number; selected: number | null; onSelect: (t: Comment) => void; reload: () => void; onTask: (c: Comment) => void; locked: boolean
   tasks: Task[]; onOpenTasks: () => void
+  people: PeopleSel; setPeople: (sel: PeopleSel) => void; personOptions: PersonOption[]; meId?: number; hidden: number
 }) {
   const [status, setStatus] = useState<'open' | 'all' | 'resolved' | 'rejected'>('open')
   const [kind, setKind] = useState<'' | CommentKind>('')
@@ -264,13 +283,14 @@ function Threads({ review, threads, carried, page, selected, onSelect, reload, o
   return (
     <>
       <div className="thread-filters">
+        <PeopleFilter value={people} onChange={setPeople} people={personOptions} meId={meId} />
         <Select value={status} onChange={v => setStatus(v as typeof status)} ariaLabel="State"
           options={([['open', 'Open'], ['all', 'All'], ['resolved', 'Resolved'], ['rejected', 'Rejected']] as const).map(([v, l]) => ({ value: v, label: l, hint: String(threads.filter(t => v === 'all' || t.status === v).length) }))} />
         <Select value={kind} onChange={v => setKind(v as typeof kind)} ariaLabel="Kind"
           options={([['', 'Every kind'], ['issue', 'Issues'], ['question', 'Questions'], ['comment', 'Comments']] as const).map(([v, l]) => ({ value: v, label: l, hint: String(threads.filter(t => !v || t.kind === v).length) }))} />
         <label className="row small"><input type="checkbox" checked={here} onChange={e => setHere(e.target.checked)} style={{ width: 'auto' }} /> Page {page}</label>
       </div>
-      {list.length === 0 && <p className="muted small" style={{ padding: '12px 2px' }}>{threads.length ? 'Nothing matches.' : 'No threads yet.'}</p>}
+      {list.length === 0 && <p className="muted small" style={{ padding: '12px 2px' }}>{threads.length ? 'Nothing matches.' : hidden ? <>No threads from these people. <button type="button" className="linklike" onClick={() => setPeople(EVERYONE)}>Show everyone's</button></> : 'No threads yet.'}</p>}
       <div className="thread-list">
         {list.map(t => (
           <div key={t.id} ref={selected === t.id ? selRef : undefined}>

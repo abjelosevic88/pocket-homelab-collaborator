@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Pocket Collaborator — reviews, threads, the document page and the report
+   Pocket Review — reviews, threads, the document page and the report
    ========================================================================== */
 
 :root {
@@ -142,6 +142,13 @@ a.stat:hover .icon { color: var(--accent); }
 .sel.compact .sel-btn, .thread-filters .sel-btn, .rev-select .sel-btn, .role-select .sel-btn { height: 30px; padding: 0 28px 0 10px; font-size: 12.5px; }
 .thread-filters .sel { flex: 1 1 120px; min-width: 0; }
 .thread-filters .sel-pop, .role-select .sel-pop { min-width: 220px; }
+.people-filter .sel-btn { padding-left: 9px; }
+.people-filter .sel-btn > .icon { color: var(--muted); flex-shrink: 0; }
+.people-filter .sel-btn.is-set { border-color: var(--accent); color: var(--accent-ink); }
+.people-filter .sel-btn.is-set > .icon { color: var(--accent); }
+.people-filter button.sel-opt { width: 100%; border: 0; background: none; font: inherit; color: inherit; text-align: left; }
+.people-filter button.sel-opt:hover, .people-filter .people-opt:hover { background: var(--hover); }
+.people-filter .people-opt input { width: auto; margin: 0; accent-color: var(--accent); }
 .rev-select { width: auto; min-width: 150px; }
 .rev-select .sel-pop { min-width: 300px; }
 .role-select { width: 140px; flex-shrink: 0; }

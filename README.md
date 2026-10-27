@@ -1,14 +1,14 @@
 <p align="center">
   <img src="web/public/favicon.svg" width="72" alt="">
 </p>
-<h1 align="center">Pocket Collaborator</h1>
+<h1 align="center">Pocket Review</h1>
 <p align="center">
   Review a document together: comments pinned to the page, issues that get resolved or rejected, tasks, a strict sign-off, live presence, and a report of who spent how long on what.<br>
   <b>One binary · one SQLite file plus the documents · one volume.</b>
 </p>
 <p align="center">
-  <a href="https://github.com/abjelosevic88/pocket-homelab-collaborator/actions"><img src="https://github.com/abjelosevic88/pocket-homelab-collaborator/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://github.com/abjelosevic88/pocket-homelab-collaborator/pkgs/container/pocket-homelab-collaborator"><img src="https://img.shields.io/badge/ghcr.io-amd64%20%7C%20arm64%20%7C%20armv7-blue" alt="image"></a>
+  <a href="https://github.com/abjelosevic88/pocket-homelab-review/actions"><img src="https://github.com/abjelosevic88/pocket-homelab-review/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/abjelosevic88/pocket-homelab-review/pkgs/container/pocket-homelab-review"><img src="https://img.shields.io/badge/ghcr.io-amd64%20%7C%20arm64%20%7C%20armv7-blue" alt="image"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
 
@@ -17,7 +17,8 @@
 Peer review tools like SmartBear Collaborator are built for enterprises and priced that way. This is the same core idea, small enough for a home server or a small team. It starts with PDFs, and the model is ready for other sources.
 
 - **One review per document.** The owner uploads a PDF and puts people on it as **approver** (the strict sign-off), **reviewer** or **observer**. Anyone not on the review gets a 404, admins included.
-- **Comments that point at something.** Select text and press *Comment*, or draw a box on the page. A thread is a **comment**, a **question** or an **issue** (minor / major / critical) with replies. Threads are **resolved** or **rejected** (rejecting needs a reason), and can be reopened.
+- **Comments that point at something.** *Select text* and press *Comment*, or switch to *Select area* and draw a box on the page. A thread is a **comment**, a **question** or an **issue** (minor / major / critical) with replies. Threads are **resolved** or **rejected** (rejecting needs a reason), and can be reopened.
+- **Whose threads you see.** Filter by who started them — only yours, one or more colleagues, everyone but you, any mix. The pins on the page follow the filter, and it is remembered per review.
 - **Tasks.** Turn any thread into a task with an assignee and a due date, or add one directly. *Tasks* lists everything assigned to you across reviews.
 - **Revisions.** Upload v2, v3…: open threads carry over, everyone's verdict is cleared so they look again, and older revisions stay viewable with their own threads.
 - **A real decision.** Reviewers finish with *looks good / needs changes / reject*. Approvers decide: **approve** (blocked while any issue is still open, unless you turn that rule off), **request changes** or **reject**. With several approvers, every one of them has to approve.
@@ -50,7 +51,7 @@ Peer review tools like SmartBear Collaborator are built for enterprises and pric
 ## Quick start
 
 ```sh
-docker run -d --name pocket-collaborator -p 8080:8080 -v ./data:/data ghcr.io/abjelosevic88/pocket-homelab-collaborator:latest
+docker run -d --name pocket-review -p 8080:8080 -v ./data:/data ghcr.io/abjelosevic88/pocket-homelab-review:latest
 ```
 
 Open http://localhost:8080 and create the first account (it becomes the admin). Behind HTTPS set `BASE_URL` and `SECURE_COOKIES=true`. The live channel is a WebSocket on `/api/v1/reviews/{id}/live`; Caddy, Traefik and nginx with the usual upgrade headers pass it through (see [docs/reverse-proxy.md](docs/reverse-proxy.md)).
@@ -58,7 +59,7 @@ Open http://localhost:8080 and create the first account (it becomes the admin). 
 Try it with sample data and no login:
 
 ```sh
-make web build && DATA_DIR=./data DEMO_DATA=true AUTH_MODE=none ./pocket-collaborator
+make web build && DATA_DIR=./data DEMO_DATA=true AUTH_MODE=none ./pocket-review
 ```
 
 ## How a review goes
@@ -84,7 +85,7 @@ Roles in detail:
 
 ## Pocket Core
 
-With `CORE_URL` set the app registers with [Pocket Core](https://github.com/abjelosevic88/pocket-homelab-core), offers **Sign in with Pocket Core**, accepts the tokens Core hands to paired phones, and publishes `collaborator.review_started`, `collaborator.comment_added` and `collaborator.review_decided` (each with `audience_emails`, the people on the review). Without it everything works the same.
+With `CORE_URL` set the app registers with [Pocket Core](https://github.com/abjelosevic88/pocket-homelab-core), offers **Sign in with Pocket Core**, accepts the tokens Core hands to paired phones, and publishes `review.review_started`, `review.comment_added` and `review.review_decided` (each with `audience_emails`, the people on the review). Without it everything works the same.
 
 ## Documentation
 

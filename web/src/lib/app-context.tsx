@@ -64,7 +64,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [reloadUsers])
 
-  useEffect(() => { refresh().catch(() => setStatus({ needs_setup: false, auth_mode: 'local', authenticated: false, user: null, version: '', title: 'Pocket Collaborator' })) }, [refresh])
+  useEffect(() => { refresh().catch(() => setStatus({ needs_setup: false, auth_mode: 'local', authenticated: false, user: null, version: '', title: 'Pocket Review' })) }, [refresh])
   useEffect(() => {
     const h = () => { setUser(null); setStatus(s => s ? { ...s, authenticated: false, user: null } : s) }
     window.addEventListener('pcl:unauthorized', h)

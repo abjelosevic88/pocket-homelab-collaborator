@@ -1,4 +1,4 @@
-module github.com/abjelosevic88/pocket-homelab-collaborator
+module github.com/abjelosevic88/pocket-homelab-review
 
 go 1.26.5
 

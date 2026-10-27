@@ -263,7 +263,7 @@ function About({ onShortcuts }: { onShortcuts: () => void }) {
       <div className="set-about-hero">
         <img src="/favicon.svg" alt="" width={48} height={48} />
         <div>
-          <h3>Pocket Collaborator</h3>
+          <h3>Pocket Review</h3>
           <p className="muted small">Document review for small teams: comments pinned to the page, issues that get resolved or rejected, tasks, sign-off, live presence, and a report of who spent how long on what. One binary, one SQLite file plus the documents — part of the Pocket apps. PDF rendering by Mozilla pdf.js.</p>
         </div>
       </div>
@@ -279,7 +279,7 @@ function About({ onShortcuts }: { onShortcuts: () => void }) {
       </Section>
       <div className="row wrap">
         <button type="button" className="btn" onClick={onShortcuts}><Icon name="keyboard" size={15} />Keyboard shortcuts</button>
-        <a className="btn" href="https://github.com/abjelosevic88/pocket-homelab-collaborator" target="_blank" rel="noreferrer"><Icon name="external" size={15} />Project on GitHub (MIT)</a>
+        <a className="btn" href="https://github.com/abjelosevic88/pocket-homelab-review" target="_blank" rel="noreferrer"><Icon name="external" size={15} />Project on GitHub (MIT)</a>
       </div>
     </div>
   )

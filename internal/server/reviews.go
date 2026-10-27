@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/report"
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/report"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 // ---- access ----
@@ -351,10 +351,10 @@ func (s *Server) handleReviewStatus(w http.ResponseWriter, r *http.Request) {
 		switch to {
 		case store.StatusInReview:
 			if in.Action == "start" {
-				return s.queueEvent(ctx, tx, "collaborator.review_started", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title}))
+				return s.queueEvent(ctx, tx, "review.review_started", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title}))
 			}
 		case store.StatusApproved, store.StatusCancelled:
-			return s.queueEvent(ctx, tx, "collaborator.review_decided", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title, "status": to}))
+			return s.queueEvent(ctx, tx, "review.review_decided", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title, "status": to}))
 		}
 		return nil
 	}); err != nil {
@@ -434,7 +434,7 @@ func (s *Server) handleVerdict(w http.ResponseWriter, r *http.Request) {
 		if to != "" {
 			if err := s.store.SetReviewStatus(ctx, rv.ID, to, func(tx *sql.Tx) error {
 				if to != store.StatusChangesRequested {
-					return s.queueEvent(ctx, tx, "collaborator.review_decided", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title, "status": to}))
+					return s.queueEvent(ctx, tx, "review.review_decided", fmt.Sprint(rv.ID), s.eventPayload(ctx, rv, map[string]any{"title": rv.Title, "status": to}))
 				}
 				return nil
 			}); err != nil {

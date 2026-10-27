@@ -2,7 +2,7 @@ import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import './styles/base.css'
-import './styles/collab.css'
+import './styles/review.css'
 import './styles/app.css'
 import './styles/settings.css'
 import { AppProvider, useApp } from './lib/app-context'
@@ -34,7 +34,7 @@ function App() {
       <Route path="/login" element={<Login mode="login" />} />
       <Route path="/setup" element={<Login mode="setup" />} />
       <Route path="/settings/:tab?" element={<Gate><ErrorBoundary where="settings"><Settings /></ErrorBoundary></Gate>} />
-      <Route element={<Gate><ErrorBoundary where="collaborator"><Layout /></ErrorBoundary></Gate>}>
+      <Route element={<Gate><ErrorBoundary where="review"><Layout /></ErrorBoundary></Gate>}>
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<Home />} />
         <Route path="/reviews" element={<Reviews />} />

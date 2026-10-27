@@ -1,6 +1,6 @@
 {
-  "name": "Pocket Collaborator",
-  "short_name": "Collaborator",
+  "name": "Pocket Review",
+  "short_name": "Review",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f6f8",

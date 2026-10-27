@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abjelosevic88/pocket-homelab-collaborator/internal/store"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 )
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {

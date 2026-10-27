@@ -1,7 +1,7 @@
 services:
-  pocket-collaborator:
-    image: ghcr.io/abjelosevic88/pocket-homelab-collaborator:latest
-    container_name: pocket-collaborator
+  pocket-review:
+    image: ghcr.io/abjelosevic88/pocket-homelab-review:latest
+    container_name: pocket-review
     restart: unless-stopped
     ports:
       - "8080:8080"
