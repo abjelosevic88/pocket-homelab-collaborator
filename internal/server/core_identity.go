@@ -2,8 +2,8 @@ package server
 
 import (
 	"context"
-	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
+	"github.com/abjelosevic88/pocket-homelab-review/internal/store"
 	"strings"
 )
 
