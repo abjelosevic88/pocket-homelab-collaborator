@@ -16,7 +16,7 @@ Every review route answers **404** to anyone not on the review, admins included.
 | `POST /reviews/{id}/status` | Owner: `{action: start \| resume \| cancel \| reopen \| complete, note?}`. |
 | `POST /reviews/{id}/verdict` | `{verdict: approved \| changes \| rejected \| "", note?}`. Reviewers finish; approvers (or the owner with no approver) decide. `409` while issues are open and the rule is on. |
 | `POST /reviews/{id}/revisions` | Owner, multipart: `file` (PDF), `page_count?`, `note?`. |
-| `GET /reviews/{id}/revisions/{vid}/file` | The PDF. |
+| `GET /reviews/{id}/revisions/{vid}/file` | The PDF. `?download=1` sends it as an attachment named after the upload plus the revision (`Contract.pdf` → `Contract_v2.pdf`). |
 | `POST /reviews/{id}/participants` | Owner: `{user_id \| email, name?, role}`. |
 | `PUT /reviews/{id}/participants/{uid}` | Owner: `{role}`; `owner` hands the review over. |
 | `DELETE /reviews/{id}/participants/{uid}` | Owner removes anyone; anyone may remove themselves. |

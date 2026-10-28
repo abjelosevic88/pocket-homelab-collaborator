@@ -141,6 +141,7 @@ export default function ReviewPage() {
         </div>
         <div className="actions row wrap">
           <Actions review={review} me={me} decider={decider} onStatus={runStatus} openModal={setModal} />
+          {rev && <a className="btn" href={`${V1}/reviews/${rid}/revisions/${rev.id}/file?download=1`} download title={`Download v${rev.number} (${rev.filename})`}><Icon name="download" size={15} />Download</a>}
           <Link className="btn" to={`/reviews/${rid}/report`}><Icon name="chart" size={15} />Report</Link>
         </div>
       </header>

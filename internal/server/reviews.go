@@ -720,9 +720,46 @@ func (s *Server) handleRevisionFile(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 	w.Header().Set("Content-Type", rev.Mime)
 	w.Header().Set("Cache-Control", "private, max-age=86400")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename=%q`, strings.ReplaceAll(rev.Filename, `"`, "")))
+	disposition, name := "inline", rev.Filename
+	if r.URL.Query().Get("download") != "" {
+		disposition, name = "attachment", versionedFilename(rev.Filename, rev.Number)
+	}
+	w.Header().Set("Content-Disposition", contentDisposition(disposition, name))
 	w.Header().Set("ETag", `"`+rev.SHA256+`"`)
 	http.ServeContent(w, r, "", time.Time{}, f)
+}
+
+// versionedFilename names a download after the uploaded file plus the revision
+// number the app shows ("Contract.pdf", v2 → "Contract_v2.pdf").
+func versionedFilename(name string, number int) string {
+	ext := filepath.Ext(name)
+	base := strings.TrimSuffix(name, ext)
+	if base == "" {
+		base = "document"
+	}
+	if ext == "" {
+		ext = ".pdf"
+	}
+	return fmt.Sprintf("%s_v%d%s", base, number, ext)
+}
+
+// contentDisposition sets an ASCII fallback name plus the UTF-8 one (RFC 6266).
+func contentDisposition(kind, name string) string {
+	ascii := strings.Map(func(r rune) rune {
+		if r < 0x20 || r > 0x7e || r == '"' || r == '\\' {
+			return '_'
+		}
+		return r
+	}, name)
+	var enc strings.Builder
+	for _, b := range []byte(name) {
+		if b < 0x80 && (b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9' || strings.IndexByte("!#$&+-.^_`|~", b) >= 0) {
+			enc.WriteByte(b)
+		} else {
+			fmt.Fprintf(&enc, "%%%02X", b)
+		}
+	}
+	return fmt.Sprintf(`%s; filename="%s"; filename*=UTF-8''%s`, kind, ascii, enc.String())
 }
 
 // handleSetPageCount lets the first viewer record how many pages the document has.
