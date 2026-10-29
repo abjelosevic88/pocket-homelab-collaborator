@@ -29,6 +29,7 @@ type commentInput struct {
 	Body       string        `json:"body"`
 	Page       int           `json:"page"`
 	Anchor     *store.Anchor `json:"anchor"`
+	Images     *[]int64      `json:"images"` // nil on an edit keeps the pictures as they are
 }
 
 // cleanAnchor keeps boxes inside the page and the quote to a sane length.
@@ -83,11 +84,18 @@ func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Body = strings.TrimSpace(in.Body)
-	if in.Body == "" || utf8.RuneCountInString(in.Body) > 20000 {
-		writeErr(w, http.StatusBadRequest, "a comment needs text (up to 20,000 characters)")
+	var images []int64
+	if in.Images != nil {
+		var ok bool
+		if images, ok = s.cleanImages(w, r, rv, *in.Images); !ok {
+			return
+		}
+	}
+	if (in.Body == "" && len(images) == 0) || utf8.RuneCountInString(in.Body) > 20000 {
+		writeErr(w, http.StatusBadRequest, "a comment needs text (up to 20,000 characters) or a picture")
 		return
 	}
-	c := &store.Comment{ReviewID: rv.ID, AuthorID: actorID(ctx), Body: in.Body}
+	c := &store.Comment{ReviewID: rv.ID, AuthorID: actorID(ctx), Body: in.Body, Images: images}
 	var parent *store.Comment
 	if in.ParentID != 0 {
 		p, err := s.store.GetComment(ctx, rv.ID, in.ParentID)
@@ -140,7 +148,7 @@ func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 		c.Anchor = cleanAnchor(in.Anchor)
 	}
 	if err := s.store.CreateComment(ctx, c, func(tx *sql.Tx) error {
-		return s.queueEvent(ctx, tx, "review.comment_added", fmt.Sprint(c.ID), s.eventPayload(ctx, rv, map[string]any{"comment_id": c.ID, "kind": c.Kind, "severity": c.Severity, "page": c.Page, "text": snippet(c.Body, 200)}))
+		return s.queueEvent(ctx, tx, "review.comment_added", fmt.Sprint(c.ID), s.eventPayload(ctx, rv, map[string]any{"comment_id": c.ID, "kind": c.Kind, "severity": c.Severity, "page": c.Page, "text": snippet(commentText(c), 200)}))
 	}); err != nil {
 		s.fail(w, err, "create comment")
 		return
@@ -149,15 +157,15 @@ func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case parent != nil:
 		kind = "comment.replied"
-		summary = fmt.Sprintf("Replied to #%d: %s", parent.ID, snippet(c.Body, 120))
+		summary = fmt.Sprintf("Replied to #%d: %s", parent.ID, snippet(commentText(c), 120))
 	case c.Kind == "issue":
 		kind = "issue.raised"
-		summary = fmt.Sprintf("Raised a %s issue #%d: %s", c.Severity, c.ID, snippet(c.Body, 120))
+		summary = fmt.Sprintf("Raised a %s issue #%d: %s", c.Severity, c.ID, snippet(commentText(c), 120))
 	case c.Kind == "question":
 		kind = "question.asked"
-		summary = fmt.Sprintf("Asked #%d: %s", c.ID, snippet(c.Body, 120))
+		summary = fmt.Sprintf("Asked #%d: %s", c.ID, snippet(commentText(c), 120))
 	default:
-		summary = fmt.Sprintf("Commented #%d: %s", c.ID, snippet(c.Body, 120))
+		summary = fmt.Sprintf("Commented #%d: %s", c.ID, snippet(commentText(c), 120))
 	}
 	s.event(ctx, rv, store.Event{Kind: kind, CommentID: c.ID, RevisionID: c.RevisionID, Page: c.Page, Summary: summary}, "comments", "review")
 
@@ -188,12 +196,19 @@ func (s *Server) handleEditComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body := strings.TrimSpace(in.Body)
-	if body == "" || utf8.RuneCountInString(body) > 20000 {
-		writeErr(w, http.StatusBadRequest, "a comment needs text (up to 20,000 characters)")
+	images := c.Images
+	if in.Images != nil {
+		var ok bool
+		if images, ok = s.cleanImages(w, r, rv, *in.Images); !ok {
+			return
+		}
+	}
+	if (body == "" && len(images) == 0) || utf8.RuneCountInString(body) > 20000 {
+		writeErr(w, http.StatusBadRequest, "a comment needs text (up to 20,000 characters) or a picture")
 		return
 	}
 	before := c.Kind + "/" + c.Severity
-	c.Body = body
+	c.Body, c.Images = body, images
 	if c.ParentID == 0 {
 		if in.Kind != "" {
 			if !store.OneOf(in.Kind, store.CommentKinds) {
@@ -251,7 +266,7 @@ func (s *Server) handleDeleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.event(ctx, rv, store.Event{Kind: "comment.deleted", CommentID: c.ID, RevisionID: c.RevisionID, Page: c.Page,
-		Summary: fmt.Sprintf("Deleted #%d: %s", c.ID, snippet(c.Body, 120))}, "comments", "review")
+		Summary: fmt.Sprintf("Deleted #%d: %s", c.ID, snippet(commentText(c), 120))}, "comments", "review")
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -10,37 +10,64 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 export type Tool = 'select' | 'comment'
 
+/** Coloured boxes drawn over a page (the compare view's added/removed words). */
+export interface Mark { rects: Rect[]; cls: string }
+/** Where a viewer is scrolled: the line in the middle of it as page-1 + fraction, and the horizontal share. */
+export interface ScrollPos { docY: number; fx: number }
+
 interface Props {
   url: string
-  threads: Comment[]
-  carried: Set<number>
-  selectedId: number | null
-  onSelect: (id: number) => void
-  tool: Tool
-  setTool: (t: Tool) => void
-  canComment: boolean
-  pending: { page: number; anchor: Anchor } | null
-  onAnchor: (page: number, anchor: Anchor) => void
-  onPage: (page: number) => void
-  onPageCount: (n: number) => void
-  cursors: RemoteCursor[]
-  showCursors: boolean
-  onCursor: (page: number, x: number, y: number) => void
-  selections: RemoteSelection[]
-  onSelection: (page: number, rects: Rect[]) => void
-  jump: { page: number; y: number; nonce: number; threadId?: number } | null
+  threads?: Comment[]
+  carried?: Set<number>
+  selectedId?: number | null
+  onSelect?: (id: number) => void
+  tool?: Tool
+  setTool?: (t: Tool) => void
+  canComment?: boolean
+  pending?: { page: number; anchor: Anchor } | null
+  onAnchor?: (page: number, anchor: Anchor) => void
+  onPage?: (page: number) => void
+  onPageCount?: (n: number) => void
+  cursors?: RemoteCursor[]
+  showCursors?: boolean
+  onCursor?: (page: number, x: number, y: number) => void
+  selections?: RemoteSelection[]
+  onSelection?: (page: number, rects: Rect[]) => void
+  jump?: { page: number; y: number; nonce: number; threadId?: number } | null
+  // the compare view: a zoom shared by both sides, marks, the loaded document, scroll sync
+  zoom?: number
+  onZoom?: (z: number) => void
+  marks?: Map<number, Mark[]>
+  onDoc?: (doc: PDFDocumentProxy | null) => void
+  onScrollPos?: (pos: ScrollPos) => void
+  follow?: (ScrollPos & { nonce: number }) | null
+  title?: React.ReactNode
 }
 
 interface Size { w: number; h: number }
 
 const ZOOMS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
+const MIN_ZOOM = 0.25, MAX_ZOOM = 5
+const NONE: never[] = []
+const NO_IDS = new Set<number>()
+const noop = () => {}
+const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(z * 1000) / 1000))
 
-export default function PdfViewer(p: Props) {
+export default function PdfViewer(props: Props) {
+  const p = {
+    threads: NONE as Comment[], carried: NO_IDS, selectedId: null, onSelect: noop, tool: 'select' as Tool, setTool: noop, canComment: false, pending: null,
+    onAnchor: noop, onPage: noop, onPageCount: noop, cursors: NONE as RemoteCursor[], showCursors: false, onCursor: noop, selections: NONE as RemoteSelection[],
+    onSelection: noop, jump: null, ...props,
+  }
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
   const [sizes, setSizes] = useState<Size[]>([])
   const [error, setError] = useState('')
   const [progress, setProgress] = useState(0)
-  const [zoom, setZoom] = useState(1)
+  const [ownZoom, setOwnZoom] = useState(1)
+  const zoom = props.zoom ?? ownZoom
+  const setZoom = useCallback((z: number) => { const v = clampZoom(z); if (props.onZoom) props.onZoom(v); else setOwnZoom(v) }, [props.onZoom]) // eslint-disable-line react-hooks/exhaustive-deps
+  const zoomRef = useRef(zoom)
+  zoomRef.current = zoom
   const [width, setWidth] = useState(0)
   const [near, setNear] = useState<Set<number>>(new Set([1, 2]))
   const [current, setCurrent] = useState(1)
@@ -50,11 +77,13 @@ export default function PdfViewer(p: Props) {
   const pageEls = useRef<Map<number, HTMLDivElement>>(new Map())
   const ratios = useRef<Map<number, number>>(new Map())
   const { onPage, onPageCount } = p
+  const onDocRef = useRef(props.onDoc)
+  onDocRef.current = props.onDoc
 
   // ---- load ----
   useEffect(() => {
     let dead = false
-    setDoc(null); setSizes([]); setError(''); setProgress(0)
+    setDoc(null); setSizes([]); setError(''); setProgress(0); onDocRef.current?.(null)
     const task = pdfjs.getDocument({ url: p.url, withCredentials: true })
     task.onProgress = ({ loaded, total }: { loaded: number; total: number }) => { if (total) setProgress(loaded / total) }
     task.promise.then(async d => {
@@ -66,7 +95,7 @@ export default function PdfViewer(p: Props) {
         out.push({ w: vp.width, h: vp.height })
       }
       if (dead) return
-      setDoc(d); setSizes(out); onPageCount(d.numPages)
+      setDoc(d); setSizes(out); onPageCount(d.numPages); onDocRef.current?.(d)
     }).catch(e => { if (!dead) setError((e as Error).message || 'Could not open the document') })
     return () => { dead = true; task.destroy() }
   }, [p.url]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -84,16 +113,104 @@ export default function PdfViewer(p: Props) {
   const fit = width > 0 ? Math.min((width - 40) / maxW, 2.2) : 1
   const scale = Math.max(0.2, fit * zoom)
 
-  // keep the same spot in view when zooming
+  // pages are laid out at the live scale at once; drawing them sharp waits until the zooming stops
+  const [renderScale, setRenderScale] = useState(scale)
+  useEffect(() => {
+    if (renderScale === scale) return
+    const t = setTimeout(() => setRenderScale(scale), 160)
+    return () => clearTimeout(t)
+  }, [scale, renderScale])
+
+  // ---- zoom keeps a spot in place: the one under the pointer (wheel, pinch) or the middle ----
+  const anchorAt = useCallback((cx: number, cy: number) => {
+    const root = scroller.current
+    if (!root) return null
+    const x = root.scrollLeft + cx, y = root.scrollTop + cy
+    let best: { n: number; el: HTMLDivElement } | null = null
+    pageEls.current.forEach((el, n) => { if (el.offsetTop <= y + 8 && (!best || el.offsetTop > best.el.offsetTop)) best = { n, el } })
+    const b = best as { n: number; el: HTMLDivElement } | null
+    if (!b) return null
+    return { page: b.n, fx: (x - b.el.offsetLeft) / b.el.offsetWidth, fy: (y - b.el.offsetTop) / b.el.offsetHeight, cx, cy }
+  }, [])
+  const pointerAnchor = useRef<ReturnType<typeof anchorAt>>(null)
+  const middleAnchor = useRef<ReturnType<typeof anchorAt>>(null)
   const prevScale = useRef(scale)
   useLayoutEffect(() => {
-    const el = scroller.current
-    if (el && prevScale.current !== scale) {
-      const ratio = scale / prevScale.current
-      el.scrollTop = el.scrollTop * ratio
-      prevScale.current = scale
-    }
+    const root = scroller.current
+    if (!root || prevScale.current === scale) return
+    const a = pointerAnchor.current ?? middleAnchor.current
+    pointerAnchor.current = null
+    const ratio = scale / prevScale.current
+    prevScale.current = scale
+    const el = a && pageEls.current.get(a.page)
+    if (!a || !el) { root.scrollTop = root.scrollTop * ratio; return }
+    root.scrollTop = el.offsetTop + a.fy * el.offsetHeight - a.cy
+    root.scrollLeft = el.offsetLeft + a.fx * el.offsetWidth - a.cx
   }, [scale])
+
+  // Ctrl/⌘ + wheel and trackpad pinch zoom; a plain wheel scrolls
+  useEffect(() => {
+    const root = scroller.current
+    if (!root) return
+    const wheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      const r = root.getBoundingClientRect()
+      pointerAnchor.current = anchorAt(e.clientX - r.left, e.clientY - r.top)
+      const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY
+      setZoom(zoomRef.current * Math.exp(-Math.max(-120, Math.min(120, dy)) * 0.0022))
+    }
+    // Safari on a Mac sends its own pinch events
+    let start = 1
+    const gs = (e: Event) => { e.preventDefault(); start = zoomRef.current }
+    const gc = (e: Event) => {
+      e.preventDefault()
+      const g = e as Event & { scale: number; clientX: number; clientY: number }
+      const r = root.getBoundingClientRect()
+      pointerAnchor.current = anchorAt(g.clientX - r.left, g.clientY - r.top)
+      setZoom(start * g.scale)
+    }
+    root.addEventListener('wheel', wheel, { passive: false })
+    root.addEventListener('gesturestart', gs)
+    root.addEventListener('gesturechange', gc)
+    return () => { root.removeEventListener('wheel', wheel); root.removeEventListener('gesturestart', gs); root.removeEventListener('gesturechange', gc) }
+  }, [anchorAt, setZoom])
+
+  // ---- scroll position for the compare view (the line in the middle) ----
+  const { onScrollPos, follow } = props
+  const expectTop = useRef<number | null>(null)
+  const posOf = useCallback((): ScrollPos | null => {
+    const root = scroller.current
+    if (!root || !pageEls.current.size) return null
+    const y = root.scrollTop + root.clientHeight / 2
+    let best: { n: number; el: HTMLDivElement } | null = null
+    pageEls.current.forEach((el, n) => { if (el.offsetTop <= y && (!best || el.offsetTop > best.el.offsetTop)) best = { n, el } })
+    const b = (best as { n: number; el: HTMLDivElement } | null) ?? { n: 1, el: pageEls.current.get(1)! }
+    if (!b.el) return null
+    const span = root.scrollWidth - root.clientWidth
+    return { docY: b.n - 1 + Math.max(0, Math.min(1, (y - b.el.offsetTop) / b.el.offsetHeight)), fx: span > 0 ? root.scrollLeft / span : 0 }
+  }, [])
+  const onScroll = () => {
+    if (selBtn) setSelBtn(null)
+    const root = scroller.current
+    if (!root) return
+    middleAnchor.current = anchorAt(root.clientWidth / 2, root.clientHeight / 2)
+    if (expectTop.current !== null && Math.abs(root.scrollTop - expectTop.current) < 2) { expectTop.current = null; return }
+    expectTop.current = null
+    if (onScrollPos) { const pos = posOf(); if (pos) onScrollPos(pos) }
+  }
+  useLayoutEffect(() => {
+    const root = scroller.current
+    if (!follow || !root || !sizes.length) return
+    const n = Math.max(1, Math.min(sizes.length, Math.floor(follow.docY) + 1))
+    const el = pageEls.current.get(n)
+    if (!el) return
+    const top = Math.round(Math.max(0, Math.min(root.scrollHeight - root.clientHeight, el.offsetTop + (follow.docY - (n - 1)) * el.offsetHeight - root.clientHeight / 2)))
+    const span = root.scrollWidth - root.clientWidth
+    const left = Math.round(follow.fx * span)
+    if (Math.abs(root.scrollTop - top) >= 1) { expectTop.current = top; root.scrollTop = top }
+    if (span > 0 && Math.abs(root.scrollLeft - left) >= 1) root.scrollLeft = left
+  }, [follow]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- which pages are near (render) and which is current ----
   useEffect(() => {
@@ -117,7 +234,7 @@ export default function PdfViewer(p: Props) {
     }, { root, threshold: [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1] })
     pageEls.current.forEach(el => { nearIO.observe(el); visIO.observe(el) })
     return () => { nearIO.disconnect(); visIO.disconnect() }
-  }, [sizes, scale])
+  }, [sizes, renderScale])
   useEffect(() => { onPage(current) }, [current, onPage])
 
   // ---- jump to a thread ----
@@ -192,13 +309,14 @@ export default function PdfViewer(p: Props) {
   }, [p.threads])
 
   const zoomBy = (dir: 1 | -1) => {
-    const i = ZOOMS.findIndex(z => z >= zoom - 0.001)
-    setZoom(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? 4 : i) + dir))])
+    const next = dir > 0 ? ZOOMS.find(z => z > zoom + 0.001) ?? MAX_ZOOM : [...ZOOMS].reverse().find(z => z < zoom - 0.001) ?? MIN_ZOOM
+    setZoom(next)
   }
 
   return (
     <div className="viewer">
       <div className="viewer-bar">
+        {props.title}
         {p.canComment && (
           <div className="segmented sm" role="radiogroup" aria-label="Tool">
             <button type="button" className={p.tool === 'select' ? 'active' : ''} onClick={() => p.setTool('select')} title="Select text, then comment on it"><Icon name="type" size={13} />Select text</button>
@@ -214,21 +332,24 @@ export default function PdfViewer(p: Props) {
         </span>}
         <span className="row zoom">
           <button type="button" className="btn ghost sm" onClick={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out"><Icon name="zoom-out" size={15} /></button>
-          <button type="button" className="btn ghost sm zoom-val" onClick={() => setZoom(1)} title="Fit width">{Math.round(zoom * 100)}%</button>
+          <button type="button" className="btn ghost sm zoom-val" onClick={() => setZoom(1)} title="Fit width — zoom with Ctrl/⌘ + scroll or a pinch">{Math.round(zoom * 100)}%</button>
           <button type="button" className="btn ghost sm" onClick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in"><Icon name="zoom-in" size={15} /></button>
         </span>
       </div>
-      <div className={`viewer-scroll tool-${p.tool}`} ref={scroller} onScroll={() => selBtn && setSelBtn(null)} onPointerLeave={() => p.onCursor(0, 0, 0)}>
+      <div className={`viewer-scroll tool-${p.tool}`} ref={scroller} onScroll={onScroll} onPointerLeave={() => p.onCursor(0, 0, 0)}>
         {error && <div className="callout danger" style={{ margin: 24 }}>Could not open the document: {error}</div>}
         {!doc && !error && <div className="loading"><span className="spinner" /> Loading document… {progress > 0 && `${Math.round(progress * 100)}%`}</div>}
         {doc && sizes.map((s, i) => {
           const n = i + 1
           return (
-            <PageView key={n} doc={doc} n={n} w={s.w * scale} h={s.h * scale} scale={scale} render={near.has(n)}
+            <PageView key={n} doc={doc} n={n} w={s.w * scale} h={s.h * scale} scale={scale} renderScale={renderScale} render={near.has(n)}
               register={el => { if (el) pageEls.current.set(n, el); else pageEls.current.delete(n) }}
               onMove={(x, y) => p.onCursor(n, x, y)}>
               <Overlay threads={threadsByPage.get(n) || []} carried={p.carried} selectedId={p.selectedId} flashId={flash} onSelect={p.onSelect}
                 pending={p.pending?.page === n ? p.pending.anchor : null} />
+              {props.marks?.get(n)?.map((m, i) => (
+                <div key={'m' + i} className={`diff-mark ${m.cls}`}>{m.rects.map((r, j) => <span key={j} style={rectStyle(r)} />)}</div>
+              ))}
               {p.tool === 'comment' && p.canComment && <DrawLayer onDone={a => p.onAnchor(n, a)} />}
               {p.showCursors && p.selections.filter(s => s.page === n).map(s => (
                 <React.Fragment key={'sel' + s.conn}>
@@ -257,8 +378,8 @@ export default function PdfViewer(p: Props) {
   )
 }
 
-function PageView({ doc, n, w, h, scale, render, register, onMove, children }: {
-  doc: PDFDocumentProxy; n: number; w: number; h: number; scale: number; render: boolean
+function PageView({ doc, n, w, h, scale, renderScale, render, register, onMove, children }: {
+  doc: PDFDocumentProxy; n: number; w: number; h: number; scale: number; renderScale: number; render: boolean
   register: (el: HTMLDivElement | null) => void; onMove: (x: number, y: number) => void; children: React.ReactNode
 }) {
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -277,17 +398,17 @@ function PageView({ doc, n, w, h, scale, render, register, onMove, children }: {
     doc.getPage(n).then(page => {
       if (dead || !canvas.current || !text.current) return
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      const vp = page.getViewport({ scale: scale * dpr })
+      const vp = page.getViewport({ scale: renderScale * dpr })
       const c = canvas.current
       c.width = Math.floor(vp.width); c.height = Math.floor(vp.height)
       task = page.render({ canvas: c, viewport: vp })
       task.promise.then(() => { if (!dead) setDrawn(true) }).catch(() => {})
       text.current.innerHTML = ''
-      tl = new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container: text.current, viewport: page.getViewport({ scale }) })
+      tl = new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container: text.current, viewport: page.getViewport({ scale: renderScale }) })
       tl.render().catch(() => {})
     })
     return () => { dead = true; task?.cancel(); tl?.cancel() }
-  }, [doc, n, scale, render])
+  }, [doc, n, renderScale, render])
   const style = { width: w, height: h, '--total-scale-factor': scale, '--scale-round-x': '1px', '--scale-round-y': '1px' } as React.CSSProperties
   return (
     <div className="pdf-page" data-page={n} ref={register} style={style}

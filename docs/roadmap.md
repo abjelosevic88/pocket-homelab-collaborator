@@ -5,6 +5,6 @@
 - **@mentions** in comments.
 - **Checklists** per review (the questions every reviewer must answer, as in Collaborator), counted in the report.
 - **Custom issue categories** per box (legal, wording, layout…), reported by category.
-- **Compare revisions**: v1 ↔ v2 side by side, text diff highlighted.
+- **Compare revisions, next steps**: the text diff is in (0.6.0); pictures and layout are not compared yet (a pixel overlay per page), and threads could show on both sides.
 - **Approval rules**: "any one approver", "two of three", a deadline that escalates.
 - **Annotated PDF export**: the document with the threads drawn on it.

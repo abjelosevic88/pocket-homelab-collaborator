@@ -269,6 +269,7 @@ func (s *Server) handleDeleteReview(w http.ResponseWriter, r *http.Request) {
 	for _, v := range rv.Revisions {
 		s.removeFileIfUnused(r.Context(), v.StoragePath)
 	}
+	_ = os.RemoveAll(filepath.Join(s.cfg.FilesDir, strconv.FormatInt(rv.ID, 10), "img"))
 	_ = os.Remove(filepath.Join(s.cfg.FilesDir, strconv.FormatInt(rv.ID, 10)))
 	s.hub.notify(rv.ID, actorID(r.Context()), "deleted")
 	s.log.Info("review deleted", "id", rv.ID, "by", userFrom(r.Context()).Email)

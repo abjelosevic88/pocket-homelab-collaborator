@@ -10,8 +10,10 @@ import { Icon } from '../components/icons'
 import { announceChange, useCrumb } from '../components/Layout'
 import { Avatar, LiveStack } from '../components/people'
 import PdfViewer, { KIND_ICON, Tool } from '../components/PdfViewer'
+import Compare from '../components/Compare'
 import { countPages, isPdf, PdfDrop, PersonPicker, RoleBadge, RoleSelect, SeverityBadge, StatusBadge, SourceChip } from '../components/review-bits'
 import { Select } from '../components/Select'
+import { AttachButton, AttachStrip, CommentImages, useImageAttach } from '../components/attachments'
 import { EVERYONE, parsePeopleSel, PeopleFilter, PeopleSel, PersonOption, personShown } from '../components/PeopleFilter'
 
 type Tab = 'threads' | 'tasks' | 'people' | 'log'
@@ -112,6 +114,20 @@ export default function ReviewPage() {
     try { setReview(await api.post<Review>(`${V1}/reviews/${rid}/status`, { action, note })); announceChange(); toast('Done') } catch (e) { toast((e as Error).message, 'err') }
   }
   const setRevision = (v: number) => setParams(p => { if (v === review.current_revision_id) p.delete('v'); else p.set('v', String(v)); return p })
+  // compare: ?compare=<left revision>, the right side is the revision on screen (?v=)
+  const compareId = review.revisions.some(v => v.id === Number(params.get('compare'))) ? Number(params.get('compare')) : 0
+  const setCompare = (left: number, right: number) => setParams(p => {
+    if (!left) p.delete('compare'); else p.set('compare', String(left))
+    if (right === review.current_revision_id) p.delete('v'); else p.set('v', String(right))
+    return p
+  })
+  const openCompare = () => {
+    if (!rev) return
+    const byNum = (n: number) => review.revisions.find(v => v.number === n)
+    const older = byNum(rev.number - 1)
+    if (older) setCompare(older.id, rev.id)
+    else { const newer = byNum(rev.number + 1); if (newer) setCompare(rev.id, newer.id) }
+  }
 
   return (
     <div className="review-page">
@@ -124,7 +140,10 @@ export default function ReviewPage() {
             <RoleBadge role={role} />
           </div>
           <div className="meta row wrap">
-            {review.revisions.length > 0 && (
+            {review.revisions.length > 1 && (compareId
+              ? <button type="button" className="btn sm on" onClick={() => setCompare(0, revId)} title="Back to the single document"><Icon name="columns" size={14} />Comparing</button>
+              : <button type="button" className="btn sm" onClick={openCompare} title="Two revisions side by side, with the changes marked"><Icon name="columns" size={14} />Compare</button>)}
+            {review.revisions.length > 0 && !compareId && (
               <Select className="rev-select" value={String(revId)} onChange={v => setRevision(Number(v))} ariaLabel="Revision"
                 options={[...review.revisions].reverse().map(v => ({ value: String(v.id), label: `v${v.number}${v.id === review.current_revision_id ? ' (current)' : ''}`, hint: `${fmtDate(v.created_at.slice(0, 10))} · ${v.filename}` }))} />
             )}
@@ -147,6 +166,11 @@ export default function ReviewPage() {
       </header>
       {review.description && <p className="review-desc">{review.description}</p>}
 
+      {compareId > 0 && rev ? (
+        <div className="review-body compare-mode">
+          <Compare rid={rid} revisions={review.revisions} currentId={review.current_revision_id} leftId={compareId} rightId={rev.id} onPick={setCompare} onClose={() => setCompare(0, revId)} />
+        </div>
+      ) : (
       <div className="review-body">
         <div className="review-viewer">
           {rev ? (
@@ -187,6 +211,7 @@ export default function ReviewPage() {
           </div>
         </aside>
       </div>
+      )}
 
       {modal === 'verdict' && <VerdictModal review={review} me={me!} decider={decider} onClose={() => setModal('')} onDone={r => { setReview(r); setModal('') }} />}
       {modal === 'upload' && <UploadModal review={review} onClose={() => setModal('')} onDone={() => { setModal(''); setParams(p => { p.delete('v'); return p }); loadReview() }} />}
@@ -241,13 +266,15 @@ function Composer({ rid, revisionId, pending, onCancel, onSaved }: { rid: number
   const [severity, setSeverity] = useState<Severity>('major')
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
+  const att = useImageAttach(rid)
   const ref = useRef<HTMLTextAreaElement>(null)
   useEffect(() => { ref.current?.focus() }, [pending])
+  const ready = (!!body.trim() || att.has) && !att.uploading
   const save = async () => {
-    if (!body.trim()) return
+    if (!ready) return
     setBusy(true)
     try {
-      const c = await api.post<Comment>(`${V1}/reviews/${rid}/comments`, { revision_id: revisionId, page: pending.page, anchor: pending.anchor, kind, severity: kind === 'issue' ? severity : '', body })
+      const c = await api.post<Comment>(`${V1}/reviews/${rid}/comments`, { revision_id: revisionId, page: pending.page, anchor: pending.anchor, kind, severity: kind === 'issue' ? severity : '', body, images: att.ids })
       onSaved(c)
     } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false) }
   }
@@ -257,9 +284,11 @@ function Composer({ rid, revisionId, pending, onCancel, onSaved }: { rid: number
       {pending.anchor.quote && <blockquote className="quote">{pending.anchor.quote}</blockquote>}
       <Segmented size="sm" value={kind} onChange={setKind} options={[{ value: 'comment', label: <><Icon name="message" size={13} />Comment</> }, { value: 'question', label: <><Icon name="help" size={13} />Question</> }, { value: 'issue', label: <><Icon name="alert" size={13} />Issue</> }]} />
       {kind === 'issue' && <Segmented size="sm" value={severity} onChange={setSeverity} options={[{ value: 'minor', label: 'Minor' }, { value: 'major', label: 'Major' }, { value: 'critical', label: 'Critical' }]} />}
-      <textarea ref={ref} rows={3} value={body} onChange={e => setBody(e.target.value)} placeholder={kind === 'issue' ? 'What is wrong, and what should it say?' : kind === 'question' ? 'What would you like to know?' : 'Your comment…'}
+      <textarea ref={ref} rows={3} value={body} onChange={e => setBody(e.target.value)} placeholder={kind === 'issue' ? 'What is wrong, and what should it say?' : kind === 'question' ? 'What would you like to know?' : 'Your comment… (paste a picture with ⌘V)'}
+        onPaste={att.onPaste} onDrop={att.onDrop}
         onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') onCancel() }} />
-      <div className="row"><span className="muted small"><kbd>⌘</kbd> <kbd>↵</kbd></span><span className="spacer" /><button type="button" className="btn" onClick={onCancel}>Cancel</button><button type="button" className="btn primary" onClick={save} disabled={busy || !body.trim()}>Post</button></div>
+      <AttachStrip att={att} />
+      <div className="row"><AttachButton att={att} /><span className="muted small"><kbd>⌘</kbd> <kbd>↵</kbd></span><span className="spacer" /><button type="button" className="btn" onClick={onCancel}>Cancel</button><button type="button" className="btn primary" onClick={save} disabled={busy || !ready}>Post</button></div>
     </div>
   )
 }
@@ -311,6 +340,7 @@ function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked
   const [note, setNote] = useState('')
   const [editing, setEditing] = useState<Comment | null>(null)
   const [busy, setBusy] = useState(false)
+  const att = useImageAttach(review.id)
   const role = review.my_role
   const mine = t.author_id === user?.id
   const canModerate = role === 'owner' || role === 'approver'
@@ -320,7 +350,8 @@ function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked
   const run = async (fn: () => Promise<unknown>, msg?: string) => { setBusy(true); try { await fn(); reload(); if (msg) toast(msg) } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false) } }
   const setStatus = (status: ThreadStatus) => run(async () => { await api.post(`${V1}/reviews/${review.id}/comments/${t.id}/status`, { status, note }); setClosing(null); setNote('') },
     { open: 'Reopened', resolved: 'Resolved', rejected: 'Rejected' }[status])
-  const send = () => reply.trim() && run(async () => { await api.post(`${V1}/reviews/${review.id}/comments`, { parent_id: t.id, body: reply }); setReply('') })
+  const canSend = (!!reply.trim() || att.has) && !att.uploading
+  const send = () => canSend && run(async () => { await api.post(`${V1}/reviews/${review.id}/comments`, { parent_id: t.id, body: reply, images: att.ids }); setReply(''); att.clear() })
   return (
     <div className={`thread card ${open ? 'open' : ''} st-${t.status} kind-${t.kind} ${t.severity ? 'sev-' + t.severity : ''}`} title="Show in the document"
       onClick={e => { if ((e.target as HTMLElement).closest('button, a, textarea, input, .sel, .reply-box, .close-box, .thread-actions')) return; onSelect() }}>
@@ -349,7 +380,8 @@ function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked
         </div>
       )}
       {editing?.id === t.id ? <EditBox review={review} c={t} onDone={() => { setEditing(null); reload() }} /> :
-        <div className={`body ${open ? '' : 'clamp'}`}>{t.deleted ? <i className="muted">deleted</i> : t.body}</div>}
+        <>{(t.body || t.deleted) && <div className={`body ${open ? '' : 'clamp'}`}>{t.deleted ? <i className="muted">deleted</i> : t.body}</div>}
+          {!t.deleted && <CommentImages rid={review.id} ids={t.images} />}</>}
       {open && <>
         {t.replies?.map(r => (
           <div key={r.id} className="reply">
@@ -357,15 +389,18 @@ function ThreadCard({ review, t, carried, open, onSelect, reload, onTask, locked
             <div className="grow">
               <div className="small"><b>{r.author_name}</b> <span className="muted">{ago(r.created_at)}{r.edited_at && ' · edited'}</span>
                 {r.author_id === user?.id && !locked && !r.deleted && <span className="reply-tools"><button type="button" className="linklike" onClick={() => setEditing(r)}>edit</button> <button type="button" className="linklike danger-text" onClick={() => run(() => api.del(`${V1}/reviews/${review.id}/comments/${r.id}`), 'Deleted')}>delete</button></span>}</div>
-              {editing?.id === r.id ? <EditBox review={review} c={r} onDone={() => { setEditing(null); reload() }} /> : <div className="body">{r.deleted ? <i className="muted">deleted</i> : r.body}</div>}
+              {editing?.id === r.id ? <EditBox review={review} c={r} onDone={() => { setEditing(null); reload() }} /> : <>
+                {(r.body || r.deleted) && <div className="body">{r.deleted ? <i className="muted">deleted</i> : r.body}</div>}
+                {!r.deleted && <CommentImages rid={review.id} ids={r.images} />}</>}
             </div>
           </div>
         ))}
         {t.status !== 'open' && <div className={`status-note st-${t.status}`}>{t.status === 'resolved' ? 'Resolved' : 'Rejected'} {t.status_at && ago(t.status_at)}{t.status_note && <>: {t.status_note}</>}</div>}
         {canReply && t.status === 'open' && (
-          <div className="reply-box">
-            <textarea rows={2} value={reply} onChange={e => setReply(e.target.value)} placeholder="Reply…" onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send() }} />
-            <button type="button" className="btn primary sm" onClick={send} disabled={busy || !reply.trim()}>Reply</button>
+          <div className="reply-box" onClick={e => e.stopPropagation()}>
+            <textarea rows={2} value={reply} onChange={e => setReply(e.target.value)} placeholder="Reply… (paste a picture with ⌘V)" onPaste={att.onPaste} onDrop={att.onDrop} onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send() }} />
+            <AttachStrip att={att} />
+            <div className="row"><AttachButton att={att} /><span className="spacer" /><button type="button" className="btn primary sm" onClick={send} disabled={busy || !canSend}>Reply</button></div>
           </div>
         )}
         {closing && (
@@ -394,16 +429,20 @@ function EditBox({ review, c, onDone }: { review: Review; c: Comment; onDone: ()
   const [body, setBody] = useState(c.body)
   const [kind, setKind] = useState<CommentKind>(c.kind)
   const [severity, setSeverity] = useState<Severity>(c.severity || 'major')
+  const att = useImageAttach(review.id, c.images)
   const root = c.parent_id === 0
+  const ready = (!!body.trim() || att.has) && !att.uploading
   const save = async () => {
-    try { await api.put(`${V1}/reviews/${review.id}/comments/${c.id}`, { body, kind: root ? kind : undefined, severity: root && kind === 'issue' ? severity : '' }); onDone() } catch (e) { toast((e as Error).message, 'err') }
+    if (!ready) return
+    try { await api.put(`${V1}/reviews/${review.id}/comments/${c.id}`, { body, images: att.ids, kind: root ? kind : undefined, severity: root && kind === 'issue' ? severity : '' }); onDone() } catch (e) { toast((e as Error).message, 'err') }
   }
   return (
     <div className="grid" style={{ gap: 6 }} onClick={e => e.stopPropagation()}>
       {root && <Segmented size="sm" value={kind} onChange={setKind} options={[{ value: 'comment', label: 'Comment' }, { value: 'question', label: 'Question' }, { value: 'issue', label: 'Issue' }]} />}
       {root && kind === 'issue' && <Segmented size="sm" value={severity} onChange={setSeverity} options={[{ value: 'minor', label: 'Minor' }, { value: 'major', label: 'Major' }, { value: 'critical', label: 'Critical' }]} />}
-      <textarea rows={3} value={body} onChange={e => setBody(e.target.value)} autoFocus />
-      <div className="row"><span className="spacer" /><button type="button" className="btn sm" onClick={onDone}>Cancel</button><button type="button" className="btn primary sm" onClick={save} disabled={!body.trim()}>Save</button></div>
+      <textarea rows={3} value={body} onChange={e => setBody(e.target.value)} onPaste={att.onPaste} onDrop={att.onDrop} autoFocus />
+      <AttachStrip att={att} />
+      <div className="row"><AttachButton att={att} /><span className="spacer" /><button type="button" className="btn sm" onClick={onDone}>Cancel</button><button type="button" className="btn primary sm" onClick={save} disabled={!ready}>Save</button></div>
     </div>
   )
 }

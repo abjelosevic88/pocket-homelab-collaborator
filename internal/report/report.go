@@ -266,6 +266,7 @@ func Build(in Input) *Report {
 		row := ThreadRow{ID: th.ID, Revision: revNum[th.RevisionID], Page: th.Page, Kind: th.Kind, Severity: th.Severity, Category: th.Category, Status: th.Status,
 			Author: firstNonEmpty(names[th.AuthorID], th.AuthorName), Body: th.Body, CreatedAt: th.CreatedAt, StatusAt: th.StatusAt,
 			StatusBy: names[th.StatusBy], StatusNote: th.StatusNote, Replies: []Reply{}}
+		row.Body = withPictures(row.Body, len(th.Images))
 		if th.Deleted {
 			row.Body = "(deleted)"
 		}
@@ -276,7 +277,7 @@ func Build(in Input) *Report {
 			if r.Deleted {
 				continue
 			}
-			row.Replies = append(row.Replies, Reply{Author: firstNonEmpty(names[r.AuthorID], r.AuthorName), Body: r.Body, CreatedAt: r.CreatedAt})
+			row.Replies = append(row.Replies, Reply{Author: firstNonEmpty(names[r.AuthorID], r.AuthorName), Body: withPictures(r.Body, len(r.Images)), CreatedAt: r.CreatedAt})
 			t.Comments++
 			if p := person[r.AuthorID]; p != nil {
 				p.Replies++
@@ -521,4 +522,19 @@ func Duration(sec int) string {
 		return strconv.Itoa(m/60) + " h"
 	}
 	return strconv.Itoa(m/60) + " h " + strconv.Itoa(m%60) + " min"
+}
+
+// withPictures notes the pictures a comment carries, which the report cannot show.
+func withPictures(body string, n int) string {
+	if n == 0 {
+		return body
+	}
+	note := "[picture]"
+	if n > 1 {
+		note = "[" + strconv.Itoa(n) + " pictures]"
+	}
+	if body == "" {
+		return note
+	}
+	return body + " " + note
 }

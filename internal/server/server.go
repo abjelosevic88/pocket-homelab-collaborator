@@ -231,6 +231,8 @@ func (s *Server) Router() http.Handler {
 					r.Put("/comments/{cid}", s.handleEditComment)
 					r.Delete("/comments/{cid}", s.handleDeleteComment)
 					r.Post("/comments/{cid}/status", s.handleCommentStatus)
+					r.Post("/images", s.handleUploadImage)
+					r.Get("/images/{iid}", s.handleImageFile)
 
 					r.Get("/tasks", s.handleListTasks)
 					r.Post("/tasks", s.handleCreateTask)

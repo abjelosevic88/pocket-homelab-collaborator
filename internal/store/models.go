@@ -143,6 +143,7 @@ type Comment struct {
 	Body       string  `json:"body"`
 	Page       int     `json:"page"`
 	Anchor     *Anchor `json:"anchor"`
+	Images     []int64 `json:"images"` // pictures pasted into it (ids of the review's images)
 	Status     string  `json:"status"`
 	StatusBy   int64   `json:"status_by"`
 	StatusAt   *string `json:"status_at"`

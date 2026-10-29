@@ -89,6 +89,7 @@ export interface Comment {
   body: string
   page: number
   anchor: Anchor | null
+  images: number[]
   status: ThreadStatus
   status_by: number
   status_at: string | null

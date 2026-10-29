@@ -8,14 +8,14 @@ import (
 )
 
 const commentCols = `c.id, c.review_id, COALESCE(c.revision_id, 0), COALESCE(c.parent_id, 0), COALESCE(c.author_id, 0), COALESCE(NULLIF(u.name, ''), u.email, ''),
-	c.kind, c.severity, c.category, c.body, c.page, c.anchor, c.status, COALESCE(c.status_by, 0), c.status_at, c.status_note, c.deleted, c.created_at, c.edited_at`
+	c.kind, c.severity, c.category, c.body, c.page, c.anchor, c.status, COALESCE(c.status_by, 0), c.status_at, c.status_note, c.deleted, c.created_at, c.edited_at, c.images`
 
 func scanComment(row interface{ Scan(...any) error }) (*Comment, error) {
 	var c Comment
-	var anchor string
+	var anchor, images string
 	var deleted int
 	if err := row.Scan(&c.ID, &c.ReviewID, &c.RevisionID, &c.ParentID, &c.AuthorID, &c.AuthorName, &c.Kind, &c.Severity, &c.Category, &c.Body,
-		&c.Page, &anchor, &c.Status, &c.StatusBy, &c.StatusAt, &c.StatusNote, &deleted, &c.CreatedAt, &c.EditedAt); err != nil {
+		&c.Page, &anchor, &c.Status, &c.StatusBy, &c.StatusAt, &c.StatusNote, &deleted, &c.CreatedAt, &c.EditedAt, &images); err != nil {
 		return nil, notFound(err)
 	}
 	c.Deleted = deleted == 1
@@ -25,7 +25,20 @@ func scanComment(row interface{ Scan(...any) error }) (*Comment, error) {
 			c.Anchor = &a
 		}
 	}
+	c.Images = []int64{}
+	if images != "" {
+		_ = json.Unmarshal([]byte(images), &c.Images)
+	}
 	return &c, nil
+}
+
+// imagesJSON stores a comment's picture ids ("" for none).
+func imagesJSON(ids []int64) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(ids)
+	return string(b)
 }
 
 func nullID(id int64) sql.NullInt64 { return sql.NullInt64{Int64: id, Valid: id != 0} }
@@ -44,9 +57,9 @@ func (s *Store) CreateComment(ctx context.Context, c *Comment, after ...core.Com
 	}
 	c.CreatedAt = Now()
 	c.Status = "open"
-	res, err := tx.ExecContext(ctx, `INSERT INTO comments (review_id, revision_id, parent_id, author_id, kind, severity, category, body, page, anchor, status, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)`, c.ReviewID, nullID(c.RevisionID), nullID(c.ParentID), c.AuthorID, c.Kind, c.Severity, c.Category,
-		c.Body, c.Page, anchor, c.CreatedAt)
+	res, err := tx.ExecContext(ctx, `INSERT INTO comments (review_id, revision_id, parent_id, author_id, kind, severity, category, body, page, anchor, images, status, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)`, c.ReviewID, nullID(c.RevisionID), nullID(c.ParentID), c.AuthorID, c.Kind, c.Severity, c.Category,
+		c.Body, c.Page, anchor, imagesJSON(c.Images), c.CreatedAt)
 	if err != nil {
 		return err
 	}
@@ -96,12 +109,12 @@ func (s *Store) ListThreads(ctx context.Context, reviewID int64) ([]Comment, err
 	return out, nil
 }
 
-// EditComment changes a comment's text (and a root's kind/severity/category).
+// EditComment changes a comment's text and pictures (and a root's kind/severity/category).
 func (s *Store) EditComment(ctx context.Context, c *Comment) error {
 	now := Now()
 	c.EditedAt = &now
-	_, err := s.DB.ExecContext(ctx, `UPDATE comments SET body = ?, kind = ?, severity = ?, category = ?, edited_at = ? WHERE id = ? AND review_id = ?`,
-		c.Body, c.Kind, c.Severity, c.Category, now, c.ID, c.ReviewID)
+	_, err := s.DB.ExecContext(ctx, `UPDATE comments SET body = ?, images = ?, kind = ?, severity = ?, category = ?, edited_at = ? WHERE id = ? AND review_id = ?`,
+		c.Body, imagesJSON(c.Images), c.Kind, c.Severity, c.Category, now, c.ID, c.ReviewID)
 	return err
 }
 
@@ -117,7 +130,7 @@ func (s *Store) DeleteComment(ctx context.Context, reviewID, id int64) error {
 	var n int
 	_ = s.DB.QueryRowContext(ctx, `SELECT COUNT(1) FROM comments WHERE parent_id = ? AND deleted = 0`, id).Scan(&n)
 	if n > 0 {
-		_, err := s.DB.ExecContext(ctx, `UPDATE comments SET deleted = 1, body = '', edited_at = ? WHERE id = ? AND review_id = ?`, Now(), id, reviewID)
+		_, err := s.DB.ExecContext(ctx, `UPDATE comments SET deleted = 1, body = '', images = '', edited_at = ? WHERE id = ? AND review_id = ?`, Now(), id, reviewID)
 		return err
 	}
 	_, err := s.DB.ExecContext(ctx, `DELETE FROM comments WHERE id = ? AND review_id = ?`, id, reviewID)

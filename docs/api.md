@@ -26,8 +26,10 @@ Every review route answers **404** to anyone not on the review, admins included.
 | | |
 |---|---|
 | `GET /reviews/{id}/comments` | Threads with `replies`. |
-| `POST /reviews/{id}/comments` | Thread: `{revision_id?, page, kind: comment \| question \| issue, severity?, body, anchor?: {rects: [{x,y,w,h}], quote?}}` (0..1 page units). Reply: `{parent_id, body}`. |
-| `PUT /reviews/{id}/comments/{cid}` | Author: `{body, kind?, severity?}`. |
+| `POST /reviews/{id}/comments` | Thread: `{revision_id?, page, kind: comment \| question \| issue, severity?, body, images?: [id], anchor?: {rects: [{x,y,w,h}], quote?}}` (0..1 page units). Reply: `{parent_id, body, images?}`. Text or at least one picture. |
+| `PUT /reviews/{id}/comments/{cid}` | Author: `{body, images?, kind?, severity?}` (`images` left out keeps them; `[]` removes them). |
+| `POST /reviews/{id}/images` | Multipart `file`: a PNG, JPEG, GIF or WebP up to 15 MB for a comment → `{id, mime, size}`. The same picture twice in one review is stored once. Not observers. |
+| `GET /reviews/{id}/images/{iid}` | The picture (everyone on the review). |
 | `DELETE /reviews/{id}/comments/{cid}` | Author. |
 | `POST /reviews/{id}/comments/{cid}/status` | `{status: open \| resolved \| rejected, note}` (note required to reject). Owner, approvers, or the thread's author. |
 | `GET/POST /reviews/{id}/tasks`, `PUT/DELETE /reviews/{id}/tasks/{tid}` | `{title, notes?, assignee_id?, due_date?, comment_id?, status: open \| done}`. |
